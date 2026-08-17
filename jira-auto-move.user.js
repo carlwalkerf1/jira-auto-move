@@ -11,9 +11,9 @@
 // --- AUTO-UPDATE: replace REPLACE_ME below with your real host, then keep these
 // --- URLs pointing at ONE stable file path (do NOT put a version in the URL;
 // --- Tampermonkey compares the @version field inside the file to decide updates).
-// @homepageURL  https://github.com/REPLACE_ME/jira-auto-move
-// @updateURL    https://raw.githubusercontent.com/REPLACE_ME/jira-auto-move/main/jira-auto-move.user.js
-// @downloadURL  https://raw.githubusercontent.com/REPLACE_ME/jira-auto-move/main/jira-auto-move.user.js
+// @homepageURL  https://github.com/carlwalkerf1/jira-auto-move
+// @updateURL    https://raw.githubusercontent.com/carlwalkerf1/jira-auto-move/main/jira-auto-move.user.js
+// @downloadURL  https://raw.githubusercontent.com/carlwalkerf1/jira-auto-move/main/jira-auto-move.user.js
 // @supportURL   mailto:carl.walker@firstup.io
 // ==/UserScript==
 

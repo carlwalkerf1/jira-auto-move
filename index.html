@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CSUP Auto-Move Rules</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --surface-2: #eef1f6;
+    --border: #d9e0ea;
+    --ink: #17202e;
+    --ink-soft: #566175;
+    --ink-faint: #8492a6;
+    --accent: #0052cc;
+    --proceed: #1f8a4c;
+    --cloud: #0b7fa6;
+    --manual: #b06f10;
+    --block: #c23a30;
+    --shadow: 0 1px 2px rgba(20,30,50,.05), 0 6px 20px rgba(20,30,50,.06);
+    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1420;
+      --surface: #151d2b;
+      --surface-2: #1b2434;
+      --border: #29344a;
+      --ink: #e7edf6;
+      --ink-soft: #a3b0c6;
+      --ink-faint: #6f7e97;
+      --accent: #6ea8ff;
+      --proceed: #46c37e;
+      --cloud: #3fb6da;
+      --manual: #e0a54a;
+      --block: #ef6a5f;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1420;
+    --surface: #151d2b;
+    --surface-2: #1b2434;
+    --border: #29344a;
+    --ink: #e7edf6;
+    --ink-soft: #a3b0c6;
+    --ink-faint: #6f7e97;
+    --accent: #6ea8ff;
+    --proceed: #46c37e;
+    --cloud: #3fb6da;
+    --manual: #e0a54a;
+    --block: #ef6a5f;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 48px 24px 72px; }
+
+  /* ---- header ---- */
+  header { margin-bottom: 40px; }
+  .eyebrow {
+    font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 10px;
+  }
+  h1 {
+    font-size: clamp(28px, 5vw, 40px); font-weight: 800; letter-spacing: -.02em;
+    line-height: 1.05; margin: 0 0 14px; text-wrap: balance;
+  }
+  .lede { font-size: 17px; color: var(--ink-soft); margin: 0; max-width: 62ch; }
+  .trigger {
+    margin-top: 18px; display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-size: 14px; color: var(--ink-soft);
+  }
+  .kbd {
+    font-family: var(--font-mono); font-size: 12.5px; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; color: var(--ink);
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px; background: var(--accent);
+    color: #fff; font-weight: 600; font-size: 13.5px; border-radius: 7px; padding: 6px 12px;
+  }
+
+  /* ---- section ---- */
+  section { margin-top: 44px; }
+  h2 {
+    font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 0 16px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 { font-size: 16px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -.01em; }
+  p { margin: 0 0 12px; color: var(--ink-soft); }
+
+  /* ---- figure ---- */
+  figure { margin: 0; }
+  .diagram {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 22px; box-shadow: var(--shadow); overflow-x: auto;
+  }
+  .diagram svg { display: block; width: 100%; height: auto; min-width: 640px; color: var(--ink-soft); }
+  figcaption { margin-top: 12px; font-size: 13.5px; color: var(--ink-faint); text-align: center; text-wrap: balance; }
+
+  /* ---- tables ---- */
+  .tablecard { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); background: var(--surface-2); }
+  tbody tr:last-child td { border-bottom: none; }
+  td.mono, .mono { font-family: var(--font-mono); font-size: 12.5px; }
+  td .val { font-weight: 600; color: var(--ink); }
+
+  /* outcome tag */
+  .tag { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .03em; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
+  .t-proceed { color: var(--proceed); background: color-mix(in srgb, var(--proceed) 14%, transparent); }
+  .t-cloud   { color: var(--cloud);   background: color-mix(in srgb, var(--cloud) 15%, transparent); }
+  .t-manual  { color: var(--manual);  background: color-mix(in srgb, var(--manual) 16%, transparent); }
+  .t-block   { color: var(--block);   background: color-mix(in srgb, var(--block) 14%, transparent); }
+
+  /* ---- action list ---- */
+  .actions { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 620px) { .actions { grid-template-columns: 1fr 1fr; } }
+  .act {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 11px;
+    padding: 15px 16px; box-shadow: var(--shadow);
+  }
+  .act h4 { margin: 0 0 4px; font-size: 14.5px; font-weight: 700; }
+  .act p { margin: 0; font-size: 13.5px; }
+  .act .m { font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint); }
+
+  /* ---- callout ---- */
+  .callout {
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+    border-radius: 12px; padding: 18px 20px;
+  }
+  .callout h3 { margin-top: 0; }
+  .callout ul { margin: 0; padding-left: 18px; }
+  .callout li { margin: 6px 0; color: var(--ink-soft); font-size: 14px; }
+  .callout code { font-family: var(--font-mono); font-size: 12.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; color: var(--ink); }
+
+  /* ---- todo ---- */
+  .todo { display: grid; gap: 10px; }
+  .todo .row { display: flex; gap: 12px; align-items: baseline; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--manual); border-radius: 9px; padding: 13px 16px; }
+  .todo .row b { font-weight: 700; }
+  .todo .row span { color: var(--ink-soft); font-size: 14px; }
+
+  footer { margin-top: 52px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 13px; color: var(--ink-faint); }
+  footer .mono { color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Support → Engineering handoff</p>
+    <h1>CSUP Auto-Move: what the tool does</h1>
+    <p class="lede">A browser tool that moves a Customer Support ticket into Engineering and fills in the routine fields automatically. Everything below is driven by one field on the source ticket — <strong>Primary Engineering Domain Team</strong> — and every rule here is editable.</p>
+    <div class="trigger">
+      <span class="pill">⤷ Auto-Move</span>
+      <span>run from any CSUP issue — the button, or <span class="kbd">Ctrl</span> + <span class="kbd">Shift</span> + <span class="kbd">M</span></span>
+    </div>
+  </header>
+
+  <section aria-labelledby="flow-h">
+    <h2 id="flow-h">The routing at a glance</h2>
+    <figure>
+      <div class="diagram">
+        <svg viewBox="0 0 920 540" role="img" aria-label="One field, Primary Engineering Domain Team, decides one of five outcomes: move to Firstup Engineering as a Bug; move to Cloud Operations as a Story; open the Move screen to finish manually; or two blocked cases that do not move.">
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <!-- start -->
+          <rect x="40" y="44" width="300" height="54" rx="10" fill="var(--surface-2)" stroke="var(--border)"/>
+          <text x="56" y="68" font-family="var(--font-sans)" font-size="11" font-weight="700" letter-spacing="1.2" fill="var(--ink-faint)">STEP 1 · TRIGGER</text>
+          <text x="56" y="87" font-family="var(--font-sans)" font-size="14" font-weight="600" fill="var(--ink)">Auto-Move a CSUP issue</text>
+
+          <!-- start -> decision -->
+          <line x1="190" y1="98" x2="190" y2="234" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+
+          <!-- decision -->
+          <rect x="40" y="236" width="300" height="86" rx="10" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.6"/>
+          <text x="56" y="262" font-family="var(--font-sans)" font-size="11" font-weight="700" letter-spacing="1.2" fill="var(--accent)">STEP 2 · ROUTE BY</text>
+          <text x="56" y="283" font-family="var(--font-sans)" font-size="14.5" font-weight="700" fill="var(--ink)">Primary Engineering</text>
+          <text x="56" y="301" font-family="var(--font-sans)" font-size="14.5" font-weight="700" fill="var(--ink)">Domain Team</text>
+          <text x="248" y="301" font-family="var(--font-mono)" font-size="10.5" fill="var(--ink-faint)">cf_13198</text>
+
+          <!-- fan arrows: (340,279) -> (372, c_i) ; centers 83,181,279,377,475 -->
+          <line x1="340" y1="279" x2="368" y2="83"  stroke="currentColor" stroke-width="1.4" marker-end="url(#ah)"/>
+          <line x1="340" y1="279" x2="368" y2="181" stroke="currentColor" stroke-width="1.4" marker-end="url(#ah)"/>
+          <line x1="340" y1="279" x2="368" y2="279" stroke="currentColor" stroke-width="1.4" marker-end="url(#ah)"/>
+          <line x1="340" y1="279" x2="368" y2="377" stroke="currentColor" stroke-width="1.4" marker-end="url(#ah)"/>
+          <line x1="340" y1="279" x2="368" y2="475" stroke="currentColor" stroke-width="1.4" marker-end="url(#ah)"/>
+
+          <!-- outcome bars: x 372..880, tops 40,138,236,334,432 -->
+          <!-- 1 FE -->
+          <rect x="372" y="40" width="508" height="86" rx="10" fill="var(--surface)" stroke="var(--border)"/>
+          <rect x="372" y="40" width="7" height="86" rx="3" fill="var(--proceed)"/>
+          <text x="394" y="66" font-family="var(--font-sans)" font-size="15" font-weight="700" fill="var(--proceed)">→ Firstup Engineering / Bug</text>
+          <text x="394" y="87" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">DELIV · ECOINT · ECOAPI · EE · EEA · GOV · INT · PUB</text>
+          <text x="394" y="108" font-family="var(--font-sans)" font-size="12.5" fill="var(--ink-faint)">Move, then auto-fill fields, copy the description, review PSE comments</text>
+
+          <!-- 2 CLOUD -->
+          <rect x="372" y="138" width="508" height="86" rx="10" fill="var(--surface)" stroke="var(--border)"/>
+          <rect x="372" y="138" width="7" height="86" rx="3" fill="var(--cloud)"/>
+          <text x="394" y="164" font-family="var(--font-sans)" font-size="15" font-weight="700" fill="var(--cloud)">→ Cloud Operations / Story</text>
+          <text x="394" y="185" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">Operations</text>
+          <text x="394" y="206" font-family="var(--font-sans)" font-size="12.5" fill="var(--ink-faint)">Move, then only unassign (Reporter change pending IT access)</text>
+
+          <!-- 3 MANUAL -->
+          <rect x="372" y="236" width="508" height="86" rx="10" fill="var(--surface)" stroke="var(--border)"/>
+          <rect x="372" y="236" width="7" height="86" rx="3" fill="var(--manual)"/>
+          <text x="394" y="262" font-family="var(--font-sans)" font-size="15" font-weight="700" fill="var(--manual)">Open Move screen — finish manually</text>
+          <text x="394" y="283" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">EEM – Employee Experience Mobile</text>
+          <text x="394" y="304" font-family="var(--font-sans)" font-size="12.5" fill="var(--ink-faint)">Mobile routing not built yet — opens the wizard for the user</text>
+
+          <!-- 4 BLOCK deprecated -->
+          <rect x="372" y="334" width="508" height="86" rx="10" fill="var(--surface)" stroke="var(--border)"/>
+          <rect x="372" y="334" width="7" height="86" rx="3" fill="var(--block)"/>
+          <text x="394" y="360" font-family="var(--font-sans)" font-size="15" font-weight="700" fill="var(--block)">Blocked — value no longer in use</text>
+          <text x="394" y="381" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">PLT – Platform</text>
+          <text x="394" y="402" font-family="var(--font-sans)" font-size="12.5" fill="var(--ink-faint)">No move; asks the user to fix the field, opens the PSE tab</text>
+
+          <!-- 5 BLOCK unsupported -->
+          <rect x="372" y="432" width="508" height="86" rx="10" fill="var(--surface)" stroke="var(--border)"/>
+          <rect x="372" y="432" width="7" height="86" rx="3" fill="var(--block)"/>
+          <text x="394" y="458" font-family="var(--font-sans)" font-size="15" font-weight="700" fill="var(--block)">Blocked — not supported / not set</text>
+          <text x="394" y="479" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">Infosec · (blank) · any unlisted value</text>
+          <text x="394" y="500" font-family="var(--font-sans)" font-size="12.5" fill="var(--ink-faint)">No move; guidance banner, opens the PSE tab</text>
+        </svg>
+      </div>
+      <figcaption>One field — Primary Engineering Domain Team — decides where a CSUP issue goes and what happens after. Nothing moves in the two blocked cases.</figcaption>
+    </figure>
+  </section>
+
+  <section aria-labelledby="route-h">
+    <h2 id="route-h">Routing rules (the full list)</h2>
+    <div class="tablecard scroll">
+      <table>
+        <thead>
+          <tr><th>Primary Engineering Domain Team</th><th>Outcome</th><th>Destination</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">DELIV, ECOINT, ECOAPI, EE, EEA, GOV, INT, PUB</td><td><span class="tag t-proceed">Move + auto-fill</span></td><td>Firstup Engineering · <span class="val">Bug</span></td></tr>
+          <tr><td class="mono">Operations</td><td><span class="tag t-cloud">Move + unassign</span></td><td>Cloud Operations · <span class="val">Story</span></td></tr>
+          <tr><td class="mono">EEM – Employee Experience Mobile</td><td><span class="tag t-manual">Manual</span></td><td>Opens the Move screen; user finishes by hand</td></tr>
+          <tr><td class="mono">PLT – Platform</td><td><span class="tag t-block">Blocked</span></td><td>“No longer in use” — no move; opens PSE tab</td></tr>
+          <tr><td class="mono">Infosec &nbsp;·&nbsp; anything unlisted</td><td><span class="tag t-block">Blocked</span></td><td>“Not supported yet” — no move; opens PSE tab</td></tr>
+          <tr><td class="mono">(empty)</td><td><span class="tag t-block">Blocked</span></td><td>“Set the field first” — no move; opens PSE tab</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="fe-h">
+    <h2 id="fe-h">On a Firstup Engineering move — what gets set</h2>
+    <p>These run automatically, right after the move, as you (via the Jira API). Fields that need a human decision aren't touched — you're reminded of those instead.</p>
+
+    <h3>Always set (constants)</h3>
+    <div class="tablecard scroll">
+      <table>
+        <thead><tr><th>Field</th><th>Set to</th></tr></thead>
+        <tbody>
+          <tr><td>Reporting Source</td><td><span class="val">Support</span></td></tr>
+          <tr><td>Investment Profile</td><td><span class="val">Customer Issue</span></td></tr>
+          <tr><td>Support Actions Complete</td><td><span class="val">No</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Mapped from the team</h3>
+    <div class="tablecard scroll">
+      <table>
+        <thead><tr><th>Primary Engineering Domain Team</th><th>ENG Team</th><th>Domain</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">DELIV – Delivery</td><td class="val">Deliver</td><td class="val">Content - Deliver</td></tr>
+          <tr><td class="mono">ECOINT / ECOAPI – Ecosystem</td><td class="val">Ecosystem</td><td class="val">Ecosystem</td></tr>
+          <tr><td class="mono">EE / EEA – Employee Experience</td><td class="val">Experience</td><td class="val">Experience</td></tr>
+          <tr><td class="mono">GOV – Governance</td><td class="val">Governance</td><td class="val">Governance</td></tr>
+          <tr><td class="mono">INT – Intelligence</td><td class="val">Intelligence</td><td class="val">Intelligence</td></tr>
+          <tr><td class="mono">PUB – Publisher</td><td class="val">Publish</td><td class="val">Content - Publish</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Also done</h3>
+    <div class="actions">
+      <div class="act"><h4>Reporter → previous assignee</h4><p>Whoever was assigned becomes the Reporter, then the ticket is unassigned.</p></div>
+      <div class="act"><h4>Original ticket link</h4><p>Stamps the source CSUP key into the “Original Ticket” field for tracking.</p></div>
+      <div class="act"><h4>Description copied</h4><p>The full description is copied into “CSUP ticket” — formatting and images preserved.</p></div>
+      <div class="act"><h4>PSE comments preserved</h4><p>PSE-restricted comments are grabbed before the move; afterward you pick which to keep and they’re saved into “PSE Notes.”</p></div>
+    </div>
+
+    <h3>You’re reminded to fill (never auto-set)</h3>
+    <p>After the move, a checklist flags any of these that are still empty — the ones only a person can judge:</p>
+    <div class="actions">
+      <div class="act"><p><span class="val">Customer Impact</span> &nbsp;·&nbsp; <span class="val">Bug</span> &nbsp;·&nbsp; <span class="val">Escalated?</span> &nbsp;·&nbsp; <span class="val">Regression</span></p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="tweak-h">
+    <h2 id="tweak-h">What you can change</h2>
+    <div class="callout">
+      <h3>Every rule on this page lives in one place</h3>
+      <p style="margin-bottom:12px;">All of it is a <code>CONFIG</code> block at the top of the script — no code changes needed to adjust the rules:</p>
+      <ul>
+        <li>Add / remove / re-route a team — the <code>ROUTES</code> list (destination + the ENG&nbsp;Team and Domain it maps to)</li>
+        <li>Change a constant value — <code>CONST_FIELDS</code></li>
+        <li>Change which fields trigger the reminder — <code>REMINDER_FIELDS</code></li>
+        <li>Turn features on/off — description copy, PSE comments, the post-move refresh</li>
+        <li>Change the keyboard shortcut — <code>HOTKEY</code></li>
+      </ul>
+    </div>
+  </section>
+
+  <section aria-labelledby="todo-h">
+    <h2 id="todo-h">Not finished yet</h2>
+    <div class="todo">
+      <div class="row"><b>Mobile (EEM)</b><span>Real routing rule is pending the SME. For now it just opens the Move screen to do by hand.</span></div>
+      <div class="row"><b>Reporter on the Cloud route</b><span>Waiting on IT access; today the Operations route only unassigns.</span></div>
+    </div>
+  </section>
+
+  <footer>
+    Reference for the <span class="mono">CSUP Auto-Move</span> userscript · v3.8 · To change any rule, edit the <span class="mono">CONFIG</span> block at the top of the script.
+  </footer>
+</div>
+</body>
+</html>

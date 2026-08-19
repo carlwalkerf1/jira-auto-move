@@ -330,6 +330,19 @@
     <p style="margin-top:12px; font-size:13.5px; color:var(--ink-faint);">The blank, PLT, Infosec, and unlisted cases don’t move the ticket — they also open the <strong>PSE</strong> tab so you can act on it. All of this text lives in the <span class="mono">CONFIG</span> block and is editable.</p>
   </section>
 
+  <section aria-labelledby="debug-h">
+    <h2 id="debug-h">If something goes wrong — send a report</h2>
+    <p>Auto-Move fails loud: if a step breaks it stops and shows a <strong>red panel naming the exact step that failed</strong> — it never half-moves a ticket and walks away. Getting that report to Carl takes about ten seconds:</p>
+    <div class="callout">
+      <ol style="margin:0; padding-left:20px;">
+        <li style="margin:6px 0; color:var(--ink-soft);"><strong>Reproduce it</strong> — run Auto-Move on the same ticket so the red panel appears.</li>
+        <li style="margin:6px 0; color:var(--ink-soft);">Click <strong>✉ Send to Carl</strong> — this opens your mail app with a message already addressed to Carl and copies the full diagnostics to your clipboard.</li>
+        <li style="margin:6px 0; color:var(--ink-soft);"><strong>Paste</strong> into the email body (the panel confirms “full details copied, paste &amp; send”) and <strong>send</strong>.</li>
+      </ol>
+      <p style="margin:12px 0 0; font-size:13.5px; color:var(--ink-soft);">No mail app, or the button didn’t fire? Click <strong>⧉ Copy diagnostics</strong> and send the copied text to Carl any way you like — or open the browser console and copy the <code>[FE AutoMove] DIAGNOSTIC SNAPSHOT</code> dump (also available as <code>window.__feAutoMoveSnapshot</code>).</p>
+    </div>
+  </section>
+
   <section aria-labelledby="tweak-h">
     <h2 id="tweak-h">What you can change</h2>
     <div class="callout">
@@ -342,6 +355,16 @@
         <li>Turn features on/off — description copy, PSE comments, the post-move refresh</li>
         <li>Change the keyboard shortcut — <code>HOTKEY</code></li>
       </ul>
+    </div>
+  </section>
+
+  <section aria-labelledby="roadmap-h">
+    <h2 id="roadmap-h">Coming soon</h2>
+    <div class="todo">
+      <div class="row">
+        <b>Smarter churn handling&nbsp;<span class="tag t-manual">Planned</span></b>
+        <span>For <strong>Operations</strong> tickets flagged as churns (label <span class="mono">pse_churn</span>), Auto-Move will <strong>clone the CSUP before moving</strong>: it moves the <em>clone</em> to Cloud Operations and marks the <em>original</em> CSUP as Done, adding the <span class="mono">pse_close</span> and <span class="mono">pse_ops</span> labels. That leaves a closed record in the CSUP project so the churn still counts toward pse_close targets — which moving it straight to CLOUD would otherwise drop. It also detects a clone you’ve already made (via the “clones” link), so it won’t double-clone. <em>Not live yet.</em></span>
+      </div>
     </div>
   </section>
 

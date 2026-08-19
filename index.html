@@ -218,12 +218,12 @@
           <text x="394" y="185" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">Operations</text>
           <text x="394" y="206" font-family="var(--font-sans)" font-size="12.5" fill="var(--ink-faint)">Move, then only unassign (Reporter change pending IT access)</text>
 
-          <!-- 3 MANUAL -->
+          <!-- 3 EEM -->
           <rect x="372" y="236" width="508" height="86" rx="10" fill="var(--surface)" stroke="var(--border)"/>
-          <rect x="372" y="236" width="7" height="86" rx="3" fill="var(--manual)"/>
-          <text x="394" y="262" font-family="var(--font-sans)" font-size="15" font-weight="700" fill="var(--manual)">Open Move screen — finish manually</text>
+          <rect x="372" y="236" width="7" height="86" rx="3" fill="var(--proceed)"/>
+          <text x="394" y="262" font-family="var(--font-sans)" font-size="15" font-weight="700" fill="var(--proceed)">→ Firstup Engineering / Bug or Non-Deploy</text>
           <text x="394" y="283" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">EEM – Employee Experience Mobile</text>
-          <text x="394" y="304" font-family="var(--font-sans)" font-size="12.5" fill="var(--ink-faint)">Mobile routing not built yet — opens the wizard for the user</text>
+          <text x="394" y="304" font-family="var(--font-sans)" font-size="12.5" fill="var(--ink-faint)">Type from the Bug field · Yes → Bug · No/TBD → Non-Deploy · blank → set it first</text>
 
           <!-- 4 BLOCK deprecated -->
           <rect x="372" y="334" width="508" height="86" rx="10" fill="var(--surface)" stroke="var(--border)"/>
@@ -254,7 +254,7 @@
         <tbody>
           <tr><td class="mono">DELIV, ECOINT, ECOAPI, EE, EEA, GOV, INT, PUB</td><td><span class="tag t-proceed">Move + auto-fill</span></td><td>Firstup Engineering · <span class="val">Bug</span></td></tr>
           <tr><td class="mono">Operations</td><td><span class="tag t-cloud">Move + unassign</span></td><td>Cloud Operations · <span class="val">Story</span></td></tr>
-          <tr><td class="mono">EEM – Employee Experience Mobile</td><td><span class="tag t-manual">Manual</span></td><td>Opens the Move screen; user finishes by hand</td></tr>
+          <tr><td class="mono">EEM – Employee Experience Mobile</td><td><span class="tag t-proceed">Move + auto-fill</span></td><td>Firstup Engineering · <span class="val">Bug</span> (Bug = Yes) or <span class="val">Non-Deploy</span> (Bug = No/TBD); if Bug is blank, asks you to set it first</td></tr>
           <tr><td class="mono">PLT – Platform</td><td><span class="tag t-block">Blocked</span></td><td>“No longer in use” — no move; opens PSE tab</td></tr>
           <tr><td class="mono">Infosec &nbsp;·&nbsp; anything unlisted</td><td><span class="tag t-block">Blocked</span></td><td>“Not supported yet” — no move; opens PSE tab</td></tr>
           <tr><td class="mono">(empty)</td><td><span class="tag t-block">Blocked</span></td><td>“Set the field first” — no move; opens PSE tab</td></tr>
@@ -290,6 +290,7 @@
           <tr><td class="mono">GOV – Governance</td><td class="val">Governance</td><td class="val">Governance</td></tr>
           <tr><td class="mono">INT – Intelligence</td><td class="val">Intelligence</td><td class="val">Intelligence</td></tr>
           <tr><td class="mono">PUB – Publisher</td><td class="val">Publish</td><td class="val">Content - Publish</td></tr>
+          <tr><td class="mono">EEM – Employee Experience Mobile</td><td class="val">Experience - Mobile</td><td class="val">Mobile</td></tr>
         </tbody>
       </table>
     </div>
@@ -327,13 +328,12 @@
   <section aria-labelledby="todo-h">
     <h2 id="todo-h">Not finished yet</h2>
     <div class="todo">
-      <div class="row"><b>Mobile (EEM)</b><span>Real routing rule is pending the SME. For now it just opens the Move screen to do by hand.</span></div>
       <div class="row"><b>Reporter on the Cloud route</b><span>Waiting on IT access; today the Operations route only unassigns.</span></div>
     </div>
   </section>
 
   <footer>
-    Reference for the <span class="mono">CSUP Auto-Move</span> userscript · v3.8 · To change any rule, edit the <span class="mono">CONFIG</span> block at the top of the script.
+    Reference for the <span class="mono">CSUP Auto-Move</span> userscript · v3.9 · To change any rule, edit the <span class="mono">CONFIG</span> block at the top of the script.
   </footer>
 </div>
 </body>

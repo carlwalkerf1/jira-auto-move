@@ -1,16 +1,15 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      3.8
+// @version      3.9
 // @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
 // @run-at       document-idle
 // @grant        none
 //
-// --- AUTO-UPDATE: replace carlwalkerf1 below with your real host, then keep these
-// --- URLs pointing at ONE stable file path (do NOT put a version in the URL;
-// --- Tampermonkey compares the @version field inside the file to decide updates).
+// Auto-update: these URLs point at ONE stable file in the repo. Bumping the
+// @version inside that file is what tells everyone's Tampermonkey to pull it.
 // @homepageURL  https://github.com/carlwalkerf1/jira-auto-move
 // @updateURL    https://raw.githubusercontent.com/carlwalkerf1/jira-auto-move/main/jira-auto-move.user.js
 // @downloadURL  https://raw.githubusercontent.com/carlwalkerf1/jira-auto-move/main/jira-auto-move.user.js
@@ -19,15 +18,8 @@
 
 /* =========================================================================
  * TODO
- *   - Finish the mobile (EEM) flow — pending SME. Interim: open the Move
- *     screen and tell the user to proceed manually. Real rule (per SME) is
- *     likely issue type "Non-Deploy" + ENG Team "Experience - Mobile" + Domain
- *     "Mobile", but confirm before wiring in.
  *   - CLOUD/Operations route: set Reporter (to previous assignee) once IT grants
  *     permission. Right now it only unassigns.
- *   - Auto-update URLs now point at github.com/carlwalkerf1/jira-auto-move —
- *     create that PUBLIC repo and host the file as jira-auto-move.user.js so
- *     teammates get auto-updates instead of manual re-installs.
  * ========================================================================= */
 
 (function () {
@@ -39,6 +31,7 @@
   const CFG = {
     // Destination project/type per route (matched by text in the Move wizard).
     FE_PROJECT: 'Firstup Engineering', FE_TYPE: 'Bug',
+    NON_DEPLOY_TYPE: 'Non-Deploy', // EEM with Bug = No/TBD goes here instead of Bug
     CLOUD_PROJECT: 'Cloud Operations', CLOUD_TYPE: 'Story',
     // Leave NEW_STATUS null to keep the wizard default (e.g. "Awaiting Triage").
     NEW_STATUS: null,
@@ -106,6 +99,7 @@
     RELOAD_AFTER_PSE_SAVE: true,
     // Source field driving the routing + FE Domain/ENG-Team destination fields.
     SOURCE_TEAM_FIELD_ID: 'customfield_13198', // Primary Engineering Domain Team
+    BUG_FIELD_ID: 'customfield_13228',         // "Bug" (Yes/No/TBD) — picks the EEM issue type
     ENG_TEAM_FIELD_ID: 'customfield_13254',
     DOMAIN_FIELD_ID: 'customfield_13237',
 
@@ -126,7 +120,9 @@
       'INT - Intelligence':                    { dest: 'fe', engTeam: '14681', domain: '15082' },
       'PUB - Publisher':                       { dest: 'fe', engTeam: '14340', domain: '15077' },
       'Operations':                            { dest: 'cloud' },
-      'EEM - Employee Experience Mobile':      { dest: 'manual' },
+      // EEM: type depends on the source Bug field (see startFromIssue). Maps to
+      // ENG Team "Experience - Mobile" (14486) + Domain "Mobile" (15083).
+      'EEM - Employee Experience Mobile':      { dest: 'eem', engTeam: '14486', domain: '15083' },
       'PLT - Platform':                        { dest: 'deprecated' },
       'Infosec':                               { dest: 'unsupported' },
     },
@@ -485,6 +481,7 @@ Full diagnostics were copied to my clipboard — pasting below:
     if (!r) return { dest: 'unsupported', team };
     if (r.dest === 'fe') return { dest: 'fe', project: CFG.FE_PROJECT, type: CFG.FE_TYPE, engTeam: r.engTeam, domain: r.domain };
     if (r.dest === 'cloud') return { dest: 'cloud', project: CFG.CLOUD_PROJECT, type: CFG.CLOUD_TYPE };
+    if (r.dest === 'eem') return { dest: 'eem', engTeam: r.engTeam, domain: r.domain }; // type decided from the Bug field
     return { dest: r.dest, team }; // manual / deprecated
   }
 
@@ -531,17 +528,27 @@ Full diagnostics were copied to my clipboard — pasting below:
 
     // Read assignee + Primary Engineering Domain Team (drives routing; may not
     // survive the move, so we capture it now while still on the CSUP issue).
-    let src = { assigneeId: null, team: null };
+    let src = { assigneeId: null, team: null, bug: null };
     try {
-      const d = await jiraGet('/rest/api/3/issue/' + srcKey + '?fields=assignee,' + CFG.SOURCE_TEAM_FIELD_ID);
+      const d = await jiraGet('/rest/api/3/issue/' + srcKey + '?fields=assignee,' + CFG.SOURCE_TEAM_FIELD_ID + ',' + CFG.BUG_FIELD_ID);
       const team = d.fields[CFG.SOURCE_TEAM_FIELD_ID];
+      const bug = d.fields[CFG.BUG_FIELD_ID];
       src = {
         assigneeId: d.fields.assignee ? d.fields.assignee.accountId : null,
         team: team ? (team.value !== undefined ? team.value : team.name) : null,
+        bug: bug ? (bug.value !== undefined ? bug.value : bug.name) : null,
       };
     } catch (e) { showBanner('Could not read this issue: ' + e.message, 'error', true); return; }
 
-    const route = resolveRoute(src.team);
+    let route = resolveRoute(src.team);
+
+    // EEM/mobile: the destination issue type is decided by the source Bug field.
+    if (route.dest === 'eem') {
+      const bug = (src.bug || '').toString().trim().toLowerCase();
+      if (!bug) { showBanner('Please select the Bug value first, then run Auto-Move again.', 'error', true); return; }
+      const type = bug === 'yes' ? CFG.FE_TYPE : CFG.NON_DEPLOY_TYPE; // No / TBD → Non-Deploy
+      route = { dest: 'fe', project: CFG.FE_PROJECT, type: type, engTeam: route.engTeam, domain: route.domain };
+    }
 
     // Block cases — no move; guidance banner (+ PSE tab so they can fix the field).
     if (route.dest === 'blank') { showBanner(CFG.MSG_BLANK, 'error', true); openPseTab(); return; }

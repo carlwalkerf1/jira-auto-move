@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      2.9
-// @description  One-click (or keyboard-shortcut) automation of the Jira "Move Issue" wizard, shown only on CSUP issues: Actions → Move → set project=Firstup Engineering (FE), type=Bug → Next → Next → Next → Confirm. Entire flow verified end-to-end against firstup-io.atlassian.net (CSUP-9292 → FE-36615).
+// @version      3.8
+// @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
 // @run-at       document-idle
 // @grant        none
 //
-// --- AUTO-UPDATE: replace REPLACE_ME below with your real host, then keep these
+// --- AUTO-UPDATE: replace carlwalkerf1 below with your real host, then keep these
 // --- URLs pointing at ONE stable file path (do NOT put a version in the URL;
 // --- Tampermonkey compares the @version field inside the file to decide updates).
 // @homepageURL  https://github.com/carlwalkerf1/jira-auto-move
@@ -17,6 +17,19 @@
 // @supportURL   mailto:carl.walker@firstup.io
 // ==/UserScript==
 
+/* =========================================================================
+ * TODO
+ *   - Finish the mobile (EEM) flow — pending SME. Interim: open the Move
+ *     screen and tell the user to proceed manually. Real rule (per SME) is
+ *     likely issue type "Non-Deploy" + ENG Team "Experience - Mobile" + Domain
+ *     "Mobile", but confirm before wiring in.
+ *   - CLOUD/Operations route: set Reporter (to previous assignee) once IT grants
+ *     permission. Right now it only unassigns.
+ *   - Auto-update URLs now point at github.com/carlwalkerf1/jira-auto-move —
+ *     create that PUBLIC repo and host the file as jira-auto-move.user.js so
+ *     teammates get auto-updates instead of manual re-installs.
+ * ========================================================================= */
+
 (function () {
   'use strict';
 
@@ -24,8 +37,9 @@
    * CONFIG — matching is case-insensitive "contains", so partial text is fine.
    * ========================================================================= */
   const CFG = {
-    TARGET_PROJECT: 'Firstup Engineering', // "New Project" picker
-    TARGET_ISSUE_TYPE: 'Bug', // "New Issue Type" picker
+    // Destination project/type per route (matched by text in the Move wizard).
+    FE_PROJECT: 'Firstup Engineering', FE_TYPE: 'Bug',
+    CLOUD_PROJECT: 'Cloud Operations', CLOUD_TYPE: 'Story',
     // Leave NEW_STATUS null to keep the wizard default (e.g. "Awaiting Triage").
     NEW_STATUS: null,
     // Optional values to type on the "Update fields" step, keyed by visible label.
@@ -45,9 +59,113 @@
     // Only show the button / allow the shortcut on issues whose key starts with
     // this prefix (the move is <SOURCE_PREFIX> → Firstup Engineering).
     SOURCE_PREFIX: 'CSUP',
+    // Stamp the source CSUP key into the FE "Original Ticket" field during the
+    // move (useful as a queryable link; field id verified live).
+    STAMP_ORIGINAL_TICKET: true,
+    ORIGINAL_TICKET_FIELD_ID: 'customfield_13149',
+    // Show a banner on the destination issue confirming the move + field writes.
+    POST_MOVE_BANNER: true,
+    // Reload the destination issue after the writes so the new values actually
+    // appear (Jira's issue view doesn't live-update on external REST writes).
+    // The confirmation + reminder are re-shown after the reload.
+    RELOAD_AFTER_POPULATE: true,
+
+    // --- Post-move field population (replaces the disabled Studio flow) ---
+    // The script sets these on the destination FE Bug via REST, as you, right
+    // after the move. All ids verified live against firstup-io.atlassian.net.
+    POPULATE_FIELDS: true,
+    // Constant fields → option id.
+    CONST_FIELDS: {
+      customfield_13269: '14457', // Reporting Source = Support
+      customfield_13240: '14271', // Investment Profile = Customer Issue
+      customfield_16340: '17905', // Support Actions Complete = No
+    },
+    // After the move, remind the user of any of these that are still EMPTY
+    // (skips ones they've already set). Shown as a dismissable checklist banner.
+    REMIND_EMPTY: true,
+    REMINDER_FIELDS: [
+      { id: 'customfield_13599', label: 'Customer Impact' },
+      { id: 'customfield_13228', label: 'Bug' },
+      { id: 'customfield_13268', label: 'Escalated?' },
+      { id: 'customfield_13258', label: 'Regression' },
+    ],
+    // Move the previous assignee into Reporter, then unassign (FE route only).
+    REASSIGN: true,
+    // Copy the (moved) issue's Description ADF into the FE "CSUP ticket" field
+    // (rich-text/textarea → preserves formatting; images resolve as the
+    // attachments moved with the issue). Best-effort: failure never blocks the move.
+    COPY_DESCRIPTION: true,
+    CSUP_TICKET_FIELD_ID: 'customfield_15203', // "CSUP ticket" (textarea/rich text)
+    // Capture PSE-role-restricted comments before the move (they vanish after),
+    // then a post-move checklist lets the user append chosen ones into PSE Notes.
+    HANDLE_PSE_COMMENTS: true,
+    PSE_NOTES_FIELD_ID: 'customfield_15204', // "PSE Notes" (textarea/rich text)
+    PSE_ROLE_NAME: 'PSE', // comment visibility value/identifier that marks a PSE comment
+    // Reload after a successful PSE-comment save so the written PSE Notes shows
+    // (Jira view is stale post-write). Only fires on Save, never Dismiss.
+    RELOAD_AFTER_PSE_SAVE: true,
+    // Source field driving the routing + FE Domain/ENG-Team destination fields.
+    SOURCE_TEAM_FIELD_ID: 'customfield_13198', // Primary Engineering Domain Team
+    ENG_TEAM_FIELD_ID: 'customfield_13254',
+    DOMAIN_FIELD_ID: 'customfield_13237',
+
+    // Routing by Primary Engineering Domain Team value (exact source text).
+    //   dest 'fe'          → move to FE/Bug, full populate (engTeam+domain option ids)
+    //   dest 'cloud'       → move to CLOUD/Story, only unassign
+    //   dest 'manual'      → open the Move screen, tell the user to finish manually
+    //   dest 'deprecated'  → don't move; "no longer in use" banner + PSE tab
+    //   dest 'unsupported' → don't move; "not supported yet" banner + PSE tab
+    // Any value NOT listed here is treated as 'unsupported'. Blank → its own banner.
+    ROUTES: {
+      'DELIV - Delivery':                      { dest: 'fe', engTeam: '14341', domain: '15084' },
+      'ECOINT - Ecosystem Integrations Squad': { dest: 'fe', engTeam: '14345', domain: '15078' },
+      'ECOAPI - Ecosystem Partner API Squad':  { dest: 'fe', engTeam: '14345', domain: '15078' },
+      'EE - Employee Experience':              { dest: 'fe', engTeam: '14343', domain: '15079' },
+      'EEA - Employee Experience Assistant':   { dest: 'fe', engTeam: '14343', domain: '15079' }, // same as EE
+      'GOV - Governance':                      { dest: 'fe', engTeam: '14342', domain: '15081' },
+      'INT - Intelligence':                    { dest: 'fe', engTeam: '14681', domain: '15082' },
+      'PUB - Publisher':                       { dest: 'fe', engTeam: '14340', domain: '15077' },
+      'Operations':                            { dest: 'cloud' },
+      'EEM - Employee Experience Mobile':      { dest: 'manual' },
+      'PLT - Platform':                        { dest: 'deprecated' },
+      'Infosec':                               { dest: 'unsupported' },
+    },
+    SUPPORTED_HINT: 'Supported: DELIV, EE, EEA, GOV, INT, PUB, ECOINT, ECOAPI, Operations.',
+    MSG_MANUAL: "Sorry — we haven't fully enabled mobile support yet. Please proceed manually.",
+    MSG_DEPRECATED: 'That Primary Engineering Domain Team value is no longer in use. Please update it and try again.',
+    MSG_BLANK: 'Please set the Primary Engineering Domain Team before using Auto-Move.',
+    // unsupported message is a function of the value:
+    msgUnsupported: (t) => 'Auto-Move doesn’t support Primary Engineering Domain Team "' + t + '" yet — please handle this move manually, or correct the field if it was set by mistake.',
   };
 
+  const SRC_KEY = 'feAutoMove.sourceKey';   // source CSUP key, captured at kickoff
+  const SRC_DATA = 'feAutoMove.srcData';    // {assigneeId, team} captured at kickoff
+  const ROUTE_KEY = 'feAutoMove.route';     // resolved route {dest, project, type, engTeam, domain}
+  const MANUAL_KEY = 'feAutoMove.manualMsg';// one-shot: message to show on the Move screen (EEM)
+  const MOVED_KEY = 'feAutoMove.justMoved'; // one-shot: run post-move population
+  const DONE_KEY = 'feAutoMove.done';       // one-shot: after the reload, show confirm + reminder
+  const PSE_KEY = 'feAutoMove.pseComments'; // captured PSE comments awaiting review
+  const SETTLING = 'feAutoMove.settling';   // set during post-move populate+reload; suppresses the PSE panel until settled
+
   const FLAG = 'feAutoMove.active'; // sessionStorage flag that keeps it going across reloads
+
+  /* ===================== Jira REST (same-origin, cookie auth) ===================== */
+  // Verified live: cookie auth + X-Atlassian-Token:no-check writes succeed as the
+  // logged-in user. Runs in the user's own browser (no Claude classifier here).
+  async function jiraGet(path) {
+    const r = await fetch(path, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+    if (!r.ok) throw new Error('GET ' + path + ' → HTTP ' + r.status);
+    return r.json();
+  }
+  async function jiraPut(path, body) {
+    const r = await fetch(path, {
+      method: 'PUT', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Atlassian-Token': 'no-check' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error('PUT ' + path + ' → HTTP ' + r.status + ' ' + (await r.text()).slice(0, 200));
+    return true;
+  }
 
   /* ===================== small helpers ===================== */
 
@@ -277,14 +395,17 @@ Full diagnostics were copied to my clipboard — pasting below:
   /* ===================== step handlers ===================== */
 
   async function stepSelect() {
-    status('Setting project → ' + CFG.TARGET_PROJECT);
-    await setAuiPicker('project-field', 'project-suggestions', CFG.TARGET_PROJECT);
+    const route = JSON.parse(sessionStorage.getItem(ROUTE_KEY) || '{}');
+    const project = route.project || CFG.FE_PROJECT;
+    const type = route.type || CFG.FE_TYPE;
+    status('Setting project → ' + project);
+    await setAuiPicker('project-field', 'project-suggestions', project);
     await sleep(600); // issue-type list repopulates after project changes
-    status('Setting issue type → ' + CFG.TARGET_ISSUE_TYPE);
-    await setAuiPicker('issuetype-field', 'issuetype-suggestions', CFG.TARGET_ISSUE_TYPE);
+    status('Setting issue type → ' + type);
+    await setAuiPicker('issuetype-field', 'issuetype-suggestions', type);
     // sanity check the hidden values before submitting
-    const pOk = has($('#project-field')?.value, CFG.TARGET_PROJECT);
-    const tOk = has($('#issuetype-field')?.value, CFG.TARGET_ISSUE_TYPE);
+    const pOk = has($('#project-field')?.value, project);
+    const tOk = has($('#issuetype-field')?.value, type);
     if (!pOk || !tOk) throw new Error('Values did not stick (project/type). Stopping.');
     await clickNext();
   }
@@ -314,6 +435,15 @@ Full diagnostics were copied to my clipboard — pasting below:
         ['input', 'change'].forEach((t) => input.dispatchEvent(new Event(t, { bubbles: true })));
       }
     }
+    // Stamp Original Ticket = source CSUP key (the cleanup flow's marker).
+    if (CFG.STAMP_ORIGINAL_TICKET) {
+      const src = sessionStorage.getItem(SRC_KEY);
+      const ot = document.getElementById(CFG.ORIGINAL_TICKET_FIELD_ID);
+      if (src && ot) {
+        ot.value = src;
+        ['input', 'change'].forEach((t) => ot.dispatchEvent(new Event(t, { bubbles: true })));
+      }
+    }
     await clickNext();
   }
 
@@ -332,6 +462,7 @@ Full diagnostics were copied to my clipboard — pasting below:
         .filter(visible)
         .find((b) => /confirm|move|finish/i.test(b.value || b.textContent)));
     sessionStorage.removeItem(FLAG); // done regardless of outcome
+    if (CFG.POST_MOVE_BANNER) sessionStorage.setItem(MOVED_KEY, '1'); // banner on destination
     btn.click();
     status('Move submitted ✔', 'done');
     setTimeout(() => badge && badge.remove(), 5000);
@@ -347,18 +478,103 @@ Full diagnostics were copied to my clipboard — pasting below:
 
   /* ===================== kick-off from the issue view ===================== */
 
-  async function startFromIssue() {
+  // Resolve the destination + behavior for a Primary Engineering Domain Team value.
+  function resolveRoute(team) {
+    if (!team) return { dest: 'blank' };
+    const r = CFG.ROUTES[team];
+    if (!r) return { dest: 'unsupported', team };
+    if (r.dest === 'fe') return { dest: 'fe', project: CFG.FE_PROJECT, type: CFG.FE_TYPE, engTeam: r.engTeam, domain: r.domain };
+    if (r.dest === 'cloud') return { dest: 'cloud', project: CFG.CLOUD_PROJECT, type: CFG.CLOUD_TYPE };
+    return { dest: r.dest, team }; // manual / deprecated
+  }
+
+  // Best-effort: switch the issue view to the PSE tab (where the team field lives).
+  // NB: there are TWO "PSE" role=tab nodes — a "spotlight" onboarding duplicate
+  // (no data-testid, appears first) and the real tab. Target the real one, and
+  // dispatch a full pointer/mouse sequence (plain .click() doesn't flip it).
+  function openPseTab() {
+    const tabs = [...document.querySelectorAll('[role="tab"]')].filter((t) => (t.textContent || '').trim() === 'PSE');
+    const tab = tabs.find((t) => (t.getAttribute('data-testid') || '').startsWith('issue-view-layout-templates-tab-')) ||
+                tabs.find((t) => !(t.id || '').includes('spotlight')) || tabs[0];
+    if (!tab) return;
+    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((type) => {
+      const Ev = (typeof PointerEvent !== 'undefined' && type.startsWith('pointer')) ? PointerEvent : MouseEvent;
+      tab.dispatchEvent(new Ev(type, { bubbles: true, cancelable: true, view: window }));
+    });
+  }
+
+  // Open Actions → Move (navigates to the wizard). Does NOT set FLAG — the caller
+  // decides whether the wizard should be auto-driven.
+  async function openMove() {
     status('Opening Actions menu…');
     const trigger = await waitFor(() =>
       $('[data-testid="issue-meatball-menu.ui.dropdown-trigger.button"]'));
     trigger.click();
-
     const move = await waitFor(() =>
       $('[data-testid="issue-view-foundation.issue-actions.issue-manipulation-dropdown-group.move-issue.styled-section-move-issue"]') ||
       [...document.querySelectorAll('[role="menuitem"]')].find((m) => norm(m.textContent) === 'move'));
-    sessionStorage.setItem(FLAG, '1');
-    status('Starting move…');
+    status('Opening Move…');
     move.click(); // navigates to /secure/MoveIssue!default.jspa
+  }
+
+  // Wipe all cross-page state so a new kickoff never inherits a stale FLAG/route
+  // from a prior or aborted run (which could otherwise drive a stray move).
+  function clearState() {
+    [SRC_KEY, SRC_DATA, ROUTE_KEY, MANUAL_KEY, MOVED_KEY, DONE_KEY, PSE_KEY, SETTLING, FLAG]
+      .forEach((k) => sessionStorage.removeItem(k));
+  }
+
+  async function startFromIssue() {
+    clearState(); // fresh start every time
+    const srcKey = currentIssueKey();
+    if (!srcKey) { showBanner('Could not determine the current issue.', 'error'); return; }
+
+    // Read assignee + Primary Engineering Domain Team (drives routing; may not
+    // survive the move, so we capture it now while still on the CSUP issue).
+    let src = { assigneeId: null, team: null };
+    try {
+      const d = await jiraGet('/rest/api/3/issue/' + srcKey + '?fields=assignee,' + CFG.SOURCE_TEAM_FIELD_ID);
+      const team = d.fields[CFG.SOURCE_TEAM_FIELD_ID];
+      src = {
+        assigneeId: d.fields.assignee ? d.fields.assignee.accountId : null,
+        team: team ? (team.value !== undefined ? team.value : team.name) : null,
+      };
+    } catch (e) { showBanner('Could not read this issue: ' + e.message, 'error', true); return; }
+
+    const route = resolveRoute(src.team);
+
+    // Block cases — no move; guidance banner (+ PSE tab so they can fix the field).
+    if (route.dest === 'blank') { showBanner(CFG.MSG_BLANK, 'error', true); openPseTab(); return; }
+    if (route.dest === 'deprecated') { showBanner(CFG.MSG_DEPRECATED + ' ' + CFG.SUPPORTED_HINT, 'error', true); openPseTab(); return; }
+    if (route.dest === 'unsupported') { showBanner(CFG.msgUnsupported(src.team) + ' ' + CFG.SUPPORTED_HINT, 'error', true); openPseTab(); return; }
+
+    // Proceeding cases — stash context that the wizard/post-move steps need.
+    sessionStorage.setItem(SRC_KEY, srcKey);
+    sessionStorage.setItem(SRC_DATA, JSON.stringify(src));
+
+    if (route.dest === 'manual') {
+      // Open the Move screen but don't auto-drive; show the message there.
+      sessionStorage.setItem(MANUAL_KEY, CFG.MSG_MANUAL);
+      await openMove();
+      return;
+    }
+
+    // Capture PSE-restricted comments now (they vanish on move) for post-move
+    // review → PSE Notes. FE route only (that's where PSE Notes lives).
+    if (CFG.HANDLE_PSE_COMMENTS && route.dest === 'fe') {
+      try {
+        const cr = await jiraGet('/rest/api/3/issue/' + srcKey + '/comment?maxResults=100');
+        const pse = (cr.comments || [])
+          .filter((c) => c.visibility && (c.visibility.value === CFG.PSE_ROLE_NAME || c.visibility.identifier === CFG.PSE_ROLE_NAME))
+          .map((c) => ({ author: c.author && c.author.displayName, created: c.created, body: c.body }));
+        if (pse.length) sessionStorage.setItem(PSE_KEY, JSON.stringify(pse));
+      } catch (e) { console.warn('[FE AutoMove] PSE comment capture failed:', e.message); }
+    }
+
+    // fe / cloud — auto-drive the wizard using the resolved route.
+    sessionStorage.setItem(ROUTE_KEY, JSON.stringify(route));
+    sessionStorage.setItem(FLAG, '1');
+    await openMove();
   }
 
   /* ===================== floating start button ===================== */
@@ -394,7 +610,7 @@ Full diagnostics were copied to my clipboard — pasting below:
   function injectStartButton() {
     const b = document.createElement('button');
     b.id = 'fe-automove-btn';
-    b.textContent = '⤷ Move → FE / Bug';
+    b.textContent = '⤷ Auto-Move';
     Object.assign(b.style, {
       position: 'fixed', bottom: '16px', left: '16px', zIndex: 2147483647,
       background: '#0052cc', color: '#fff', border: 'none', borderRadius: '6px',
@@ -411,6 +627,289 @@ Full diagnostics were copied to my clipboard — pasting below:
     const existing = document.getElementById('fe-automove-btn');
     if (onCsupIssue()) { if (!existing) injectStartButton(); }
     else if (existing) existing.remove();
+  }
+
+  // Top-center banner. kind: 'working'|'done'|'error'. 'working' persists;
+  // 'done'/'error' auto-hide after 15s unless persist=true (then a ✕ is shown).
+  function showBanner(msg, kind, persist) {
+    const old = document.getElementById('fe-automove-banner');
+    if (old) old.remove();
+    const el = document.createElement('div');
+    el.id = 'fe-automove-banner';
+    Object.assign(el.style, {
+      position: 'fixed', top: '16px', left: '50%', transform: 'translateX(-50%)',
+      zIndex: 2147483647, color: '#fff', font: '13px/1.45 -apple-system,system-ui,sans-serif',
+      padding: '10px 16px', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,.3)',
+      maxWidth: '560px', textAlign: 'center',
+    });
+    el.style.background = kind === 'error' ? '#bf2600' : kind === 'working' ? '#0052cc' : '#006644';
+    const span = document.createElement('span');
+    span.textContent = msg;
+    el.appendChild(span);
+    if (persist) {
+      const x = document.createElement('button');
+      x.textContent = '✕';
+      Object.assign(x.style, { marginLeft: '12px', cursor: 'pointer', background: 'transparent', border: 'none', color: '#fff', fontWeight: '700', font: '13px sans-serif' });
+      x.addEventListener('click', () => el.remove());
+      el.appendChild(x);
+    }
+    document.body.appendChild(el);
+    if (kind !== 'working' && !persist) setTimeout(() => el && el.remove(), 15000);
+  }
+
+  // Populate the destination FE Bug via REST: constants + mapped Domain/ENG Team
+  // (one PUT), then reporter/unassign (separate PUT so a reporter failure can't
+  // block the field writes). Returns the list of what was set.
+  async function populateFields(feKey, route) {
+    const src = JSON.parse(sessionStorage.getItem(SRC_DATA) || '{}');
+    const done = [];
+
+    // CLOUD/Operations route: only unassign (Reporter change is TODO, pending IT).
+    if (route.dest === 'cloud') {
+      await jiraPut('/rest/api/3/issue/' + feKey, { fields: { assignee: null } });
+      done.push('unassign');
+      return done;
+    }
+
+    // FE route: constants + mapped Domain/ENG Team (one PUT), then reporter/unassign.
+    const fields = {};
+    for (const [fid, optId] of Object.entries(CFG.CONST_FIELDS || {})) fields[fid] = { id: optId };
+    if (Object.keys(fields).length) done.push('constants');
+    if (route.engTeam && route.domain) {
+      fields[CFG.DOMAIN_FIELD_ID] = { id: route.domain };
+      fields[CFG.ENG_TEAM_FIELD_ID] = { id: route.engTeam };
+      done.push('Domain/ENG Team');
+    }
+    if (Object.keys(fields).length) await jiraPut('/rest/api/3/issue/' + feKey, { fields });
+    if (CFG.REASSIGN && src.assigneeId) {
+      await jiraPut('/rest/api/3/issue/' + feKey, {
+        fields: { reporter: { accountId: src.assigneeId }, assignee: null },
+      });
+      done.push('reporter/unassign');
+    }
+    // Best-effort: copy the Description ADF into the "CSUP ticket" field. Its own
+    // PUT + try/catch so a rejection (or unexpected field config) never fails the
+    // rest of the population. Same-issue copy → media/attachments still resolve.
+    if (CFG.COPY_DESCRIPTION) {
+      try {
+        const iss = await jiraGet('/rest/api/3/issue/' + feKey + '?fields=description');
+        const adf = iss.fields && iss.fields.description;
+        if (adf) {
+          await jiraPut('/rest/api/3/issue/' + feKey, { fields: { [CFG.CSUP_TICKET_FIELD_ID]: adf } });
+          done.push('Description→CSUP ticket');
+        }
+      } catch (e) { console.warn('[FE AutoMove] description copy failed:', e.message); }
+    }
+    return done;
+  }
+
+  // Dismissable checklist banner listing fields the user still needs to set.
+  function showReminder(labels) {
+    const old = document.getElementById('fe-automove-reminder');
+    if (old) old.remove();
+    const el = document.createElement('div');
+    el.id = 'fe-automove-reminder';
+    Object.assign(el.style, {
+      position: 'fixed', top: '64px', left: '50%', transform: 'translateX(-50%)',
+      zIndex: 2147483647, background: '#172b4d', color: '#fff',
+      font: '13px/1.5 -apple-system,system-ui,sans-serif', padding: '12px 16px',
+      borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,.3)', maxWidth: '360px',
+    });
+    const title = document.createElement('div');
+    title.textContent = 'Remember to set the following:';
+    title.style.fontWeight = '600';
+    title.style.marginBottom = '6px';
+    el.appendChild(title);
+    const ul = document.createElement('ul');
+    ul.style.margin = '0'; ul.style.paddingLeft = '20px';
+    labels.forEach((l) => { const li = document.createElement('li'); li.textContent = l; ul.appendChild(li); });
+    el.appendChild(ul);
+    const close = document.createElement('button');
+    close.textContent = 'Dismiss';
+    Object.assign(close.style, {
+      marginTop: '10px', cursor: 'pointer', border: 'none', borderRadius: '5px',
+      padding: '6px 10px', background: '#fff', color: '#172b4d', fontWeight: '600',
+      font: '12px -apple-system,system-ui,sans-serif',
+    });
+    close.addEventListener('click', () => el.remove());
+    el.appendChild(close);
+    document.body.appendChild(el);
+  }
+
+  // Returns the labels of reminder fields that are still empty on the issue.
+  async function emptyReminderLabels(feKey) {
+    const fields = CFG.REMINDER_FIELDS || [];
+    if (!fields.length) return [];
+    let data;
+    try {
+      data = await jiraGet('/rest/api/3/issue/' + feKey + '?fields=' + fields.map((f) => f.id).join(','));
+    } catch (e) { console.warn('[FE AutoMove] reminder check failed:', e.message); return []; }
+    const isEmpty = (v) => v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length);
+    return fields.filter((f) => isEmpty(data.fields[f.id])).map((f) => f.label);
+  }
+
+  // One-shot after a completed move: populate the FE fields. On success, reload
+  // so the new values actually render (Jira's view is stale post-write); the
+  // confirmation + reminder are shown after the reload via DONE_KEY.
+  function maybePostMoveBanner() {
+    if (sessionStorage.getItem(MOVED_KEY) !== '1') return;
+    if (onWizard()) return;                 // wait until we've left the wizard
+    if (document.getElementById('fe-automove-banner')) return;
+    const key = currentIssueKey();
+    if (!key) return;                       // issue not resolved yet; retry next tick
+    sessionStorage.removeItem(MOVED_KEY);   // fire once
+    const route = JSON.parse(sessionStorage.getItem(ROUTE_KEY) || '{}');
+    if (!CFG.POPULATE_FIELDS) { showBanner('✅ Moved to ' + key + '.', 'done'); return; }
+    showBanner('⏳ Moved to ' + key + ' — setting fields…', 'working');
+    // Suppress the PSE panel until the populate + reload settle (else it flashes
+    // on the pre-reload page). Set synchronously so this tick's maybePseReview skips.
+    if (CFG.RELOAD_AFTER_POPULATE) sessionStorage.setItem(SETTLING, '1');
+    populateFields(key, route)
+      .then(async (d) => {
+        const empties = (CFG.REMIND_EMPTY && route.dest === 'fe') ? await emptyReminderLabels(key) : [];
+        if (CFG.RELOAD_AFTER_POPULATE) {
+          sessionStorage.setItem(DONE_KEY, JSON.stringify({ key, set: d, empties }));
+          location.reload(); // fetches fresh values; DONE_KEY re-shows the banners
+          return;
+        }
+        showBanner('✅ ' + key + ' — fields set (' + (d.join(', ') || 'none') + ').', 'done');
+        if (empties.length) showReminder(empties);
+      })
+      .catch((e) => {
+        sessionStorage.removeItem(SETTLING); // no reload happened → let the PSE panel show
+        showBanner('⚠️ ' + key + ' moved, but field update failed: ' + e.message +
+          ' — set them manually.', 'error');
+        console.error('[FE AutoMove] populate failed:', e);
+      });
+  }
+
+  // After the post-populate reload, re-show the confirmation + reminder (once).
+  function maybeShowDone() {
+    const raw = sessionStorage.getItem(DONE_KEY);
+    if (!raw) return;
+    if (onWizard()) return;
+    const key = currentIssueKey();
+    if (!key) return;                       // wait for the reloaded issue to resolve
+    sessionStorage.removeItem(DONE_KEY);    // fire once
+    sessionStorage.removeItem(SETTLING);    // settled → the PSE panel may now show
+    let info; try { info = JSON.parse(raw); } catch (e) { return; }
+    showBanner('✅ ' + (info.key || key) + ' — fields set (' + ((info.set || []).join(', ') || 'none') + ').', 'done');
+    if (info.empties && info.empties.length) showReminder(info.empties);
+  }
+
+  // EEM/manual route: once we've landed on the Move screen's project/type step,
+  // show the "proceed manually" message (the wizard is NOT auto-driven here).
+  function maybeManualMsg() {
+    const msg = sessionStorage.getItem(MANUAL_KEY);
+    if (!msg) return;
+    if (detectStep() !== 'select') return; // wait for the project/type page
+    sessionStorage.removeItem(MANUAL_KEY);  // fire once
+    showBanner(msg, 'working', true);       // persistent info banner with a ✕
+  }
+
+  /* ===================== PSE comments → PSE Notes ===================== */
+
+  const adfText = (n) => !n ? '' : (n.type === 'text' ? (n.text || '') : (n.content || []).map(adfText).join(''));
+
+  // Append the selected captured comments into the PSE Notes field (preserving
+  // existing content). Each gets a bold header line + the comment body + a rule.
+  async function savePseComments(feKey, selected) {
+    let existing = null;
+    try {
+      const iss = await jiraGet('/rest/api/3/issue/' + feKey + '?fields=' + CFG.PSE_NOTES_FIELD_ID);
+      existing = iss.fields[CFG.PSE_NOTES_FIELD_ID];
+    } catch (e) { /* treat as empty */ }
+    const doc = (existing && existing.type === 'doc' && Array.isArray(existing.content))
+      ? existing : { type: 'doc', version: 1, content: [] };
+    selected.forEach((c) => {
+      doc.content.push({ type: 'paragraph', content: [ { type: 'text',
+        text: 'PSE comment — ' + (c.author || 'Unknown') + ' · ' + (c.created ? c.created.slice(0, 10) : ''),
+        marks: [{ type: 'strong' }] } ] });
+      if (c.body && Array.isArray(c.body.content)) doc.content.push(...c.body.content);
+      doc.content.push({ type: 'rule' });
+    });
+    if (!doc.version) doc.version = 1;
+    await jiraPut('/rest/api/3/issue/' + feKey, { fields: { [CFG.PSE_NOTES_FIELD_ID]: doc } });
+  }
+
+  // Checklist panel: pick which captured PSE comments to append into PSE Notes.
+  function showPseReviewPanel(feKey, comments) {
+    const el = document.createElement('div');
+    el.id = 'fe-automove-pse';
+    Object.assign(el.style, {
+      position: 'fixed', bottom: '16px', left: '50%', transform: 'translateX(-50%)',
+      zIndex: 2147483647, background: '#172b4d', color: '#fff',
+      font: '13px/1.45 -apple-system,system-ui,sans-serif', padding: '14px 16px',
+      borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,.35)', maxWidth: '460px',
+      maxHeight: '60vh', overflowY: 'auto',
+    });
+    const title = document.createElement('div');
+    title.textContent = 'PSE comments from the original ticket — tick which to copy into PSE Notes:';
+    title.style.fontWeight = '600'; title.style.marginBottom = '10px';
+    el.appendChild(title);
+    const boxes = [];
+    comments.forEach((c) => {
+      const row = document.createElement('label');
+      Object.assign(row.style, { display: 'block', margin: '0 0 10px', cursor: 'pointer' });
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.style.marginRight = '8px'; // default UNCHECKED (opt-in, avoids saving sensitive ones by accident)
+      boxes.push(cb);
+      const meta = document.createElement('span');
+      meta.style.fontWeight = '600';
+      meta.textContent = (c.author || 'Unknown') + ' · ' + (c.created ? c.created.slice(0, 10) : '');
+      const prev = document.createElement('div');
+      Object.assign(prev.style, { opacity: '0.85', marginTop: '2px', marginLeft: '22px', whiteSpace: 'pre-wrap' });
+      const text = (c.body && Array.isArray(c.body.content)) ? c.body.content.map(adfText).join('\n') : '';
+      prev.textContent = text.slice(0, 240) + (text.length > 240 ? '…' : '');
+      row.appendChild(cb); row.appendChild(meta); row.appendChild(prev);
+      el.appendChild(row);
+    });
+    const mk = (label, bg, fg, onClick) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      Object.assign(b.style, { cursor: 'pointer', border: 'none', borderRadius: '5px', padding: '7px 10px', marginRight: '8px', background: bg, color: fg, fontWeight: '600', font: '12px -apple-system,system-ui,sans-serif' });
+      b.addEventListener('click', onClick);
+      return b;
+    };
+    const save = mk('Save selected to PSE Notes', '#fff', '#172b4d', async () => {
+      const selected = comments.filter((_, i) => boxes[i].checked);
+      if (!selected.length) { el.remove(); sessionStorage.removeItem(PSE_KEY); return; }
+      save.disabled = true; save.textContent = 'Saving…';
+      try {
+        await savePseComments(feKey, selected);
+        el.remove(); sessionStorage.removeItem(PSE_KEY);
+        if (CFG.RELOAD_AFTER_PSE_SAVE) {
+          showBanner('✅ Saved ' + selected.length + ' PSE comment(s) — refreshing to show them…', 'working');
+          setTimeout(() => location.reload(), 700);
+        } else {
+          showBanner('✅ Saved ' + selected.length + ' PSE comment(s) to PSE Notes.', 'done');
+        }
+      } catch (e) {
+        save.disabled = false; save.textContent = 'Save selected to PSE Notes';
+        showBanner('⚠️ Could not save to PSE Notes: ' + e.message, 'error', true);
+      }
+    });
+    const dismiss = mk('Dismiss', 'transparent', '#fff', () => { el.remove(); sessionStorage.removeItem(PSE_KEY); });
+    dismiss.style.border = '1px solid rgba(255,255,255,.5)';
+    const bar = document.createElement('div'); bar.style.marginTop = '6px';
+    bar.appendChild(save); bar.appendChild(dismiss);
+    el.appendChild(bar);
+    document.body.appendChild(el);
+  }
+
+  // After the move, if PSE comments were captured, show the review panel (once).
+  function maybePseReview() {
+    if (!CFG.HANDLE_PSE_COMMENTS) return;
+    const raw = sessionStorage.getItem(PSE_KEY);
+    if (!raw) return;
+    if (onWizard()) return;
+    if (onCsupIssue()) return;              // only on the destination, never the source
+    if (sessionStorage.getItem(SETTLING)) return; // wait for the populate+reload to settle
+    if (document.getElementById('fe-automove-pse')) return; // already shown
+    if (!currentIssueKey()) return;
+    let comments; try { comments = JSON.parse(raw); } catch (e) { sessionStorage.removeItem(PSE_KEY); return; }
+    if (!Array.isArray(comments) || !comments.length) { sessionStorage.removeItem(PSE_KEY); return; }
+    showPseReviewPanel(currentIssueKey(), comments);
   }
 
   /* ===================== main dispatcher ===================== */
@@ -431,10 +930,19 @@ Full diagnostics were copied to my clipboard — pasting below:
   }
 
   function tick() {
-    const active = sessionStorage.getItem(FLAG) === '1';
     const step = detectStep();
-    if (step && active) runStep(step);
-    else updateButton();
+    const active = sessionStorage.getItem(FLAG) === '1';
+    const hasRoute = !!sessionStorage.getItem(ROUTE_KEY);
+    // Only auto-drive the wizard when BOTH the active flag AND a resolved route
+    // are present. A stale FLAG with no route (leftover from an aborted run) is
+    // cleared instead of defaulting to an FE move.
+    if (step && active && hasRoute) { runStep(step); return; }
+    if (active && !hasRoute) sessionStorage.removeItem(FLAG);
+    updateButton();
+    maybePostMoveBanner();
+    maybeShowDone();
+    maybeManualMsg();
+    maybePseReview();
   }
 
   // The wizard is classic full-page loads (caught by the load event); the issue

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      3.9
+// @version      3.10
 // @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
@@ -15,12 +15,6 @@
 // @downloadURL  https://raw.githubusercontent.com/carlwalkerf1/jira-auto-move/main/jira-auto-move.user.js
 // @supportURL   mailto:carl.walker@firstup.io
 // ==/UserScript==
-
-/* =========================================================================
- * TODO
- *   - CLOUD/Operations route: set Reporter (to previous assignee) once IT grants
- *     permission. Right now it only unassigns.
- * ========================================================================= */
 
 (function () {
   'use strict';
@@ -671,10 +665,16 @@ Full diagnostics were copied to my clipboard — pasting below:
     const src = JSON.parse(sessionStorage.getItem(SRC_DATA) || '{}');
     const done = [];
 
-    // CLOUD/Operations route: only unassign (Reporter change is TODO, pending IT).
+    // CLOUD/Operations route: set Reporter to the previous assignee, then unassign
+    // (IT granted the Reporter permission on Cloud Operations as of v3.10).
     if (route.dest === 'cloud') {
-      await jiraPut('/rest/api/3/issue/' + feKey, { fields: { assignee: null } });
-      done.push('unassign');
+      if (CFG.REASSIGN && src.assigneeId) {
+        await jiraPut('/rest/api/3/issue/' + feKey, { fields: { reporter: { accountId: src.assigneeId }, assignee: null } });
+        done.push('reporter/unassign');
+      } else {
+        await jiraPut('/rest/api/3/issue/' + feKey, { fields: { assignee: null } });
+        done.push('unassign');
+      }
       return done;
     }
 

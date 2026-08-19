@@ -216,7 +216,7 @@
           <rect x="372" y="138" width="7" height="86" rx="3" fill="var(--cloud)"/>
           <text x="394" y="164" font-family="var(--font-sans)" font-size="15" font-weight="700" fill="var(--cloud)">→ Cloud Operations / Story</text>
           <text x="394" y="185" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">Operations</text>
-          <text x="394" y="206" font-family="var(--font-sans)" font-size="12.5" fill="var(--ink-faint)">Move, then only unassign (Reporter change pending IT access)</text>
+          <text x="394" y="206" font-family="var(--font-sans)" font-size="12.5" fill="var(--ink-faint)">Move, then set Reporter (previous assignee) + unassign</text>
 
           <!-- 3 EEM -->
           <rect x="372" y="236" width="508" height="86" rx="10" fill="var(--surface)" stroke="var(--border)"/>
@@ -253,7 +253,7 @@
         </thead>
         <tbody>
           <tr><td class="mono">DELIV, ECOINT, ECOAPI, EE, EEA, GOV, INT, PUB</td><td><span class="tag t-proceed">Move + auto-fill</span></td><td>Firstup Engineering · <span class="val">Bug</span></td></tr>
-          <tr><td class="mono">Operations</td><td><span class="tag t-cloud">Move + unassign</span></td><td>Cloud Operations · <span class="val">Story</span></td></tr>
+          <tr><td class="mono">Operations</td><td><span class="tag t-cloud">Move + reassign</span></td><td>Cloud Operations · <span class="val">Story</span> — sets Reporter, then unassigns</td></tr>
           <tr><td class="mono">EEM – Employee Experience Mobile</td><td><span class="tag t-proceed">Move + auto-fill</span></td><td>Firstup Engineering · <span class="val">Bug</span> (Bug = Yes) or <span class="val">Non-Deploy</span> (Bug = No/TBD); if Bug is blank, asks you to set it first</td></tr>
           <tr><td class="mono">PLT – Platform</td><td><span class="tag t-block">Blocked</span></td><td>“No longer in use” — no move; opens PSE tab</td></tr>
           <tr><td class="mono">Infosec &nbsp;·&nbsp; anything unlisted</td><td><span class="tag t-block">Blocked</span></td><td>“Not supported yet” — no move; opens PSE tab</td></tr>
@@ -325,15 +325,8 @@
     </div>
   </section>
 
-  <section aria-labelledby="todo-h">
-    <h2 id="todo-h">Not finished yet</h2>
-    <div class="todo">
-      <div class="row"><b>Reporter on the Cloud route</b><span>Waiting on IT access; today the Operations route only unassigns.</span></div>
-    </div>
-  </section>
-
   <footer>
-    Reference for the <span class="mono">CSUP Auto-Move</span> userscript · v3.9 · To change any rule, edit the <span class="mono">CONFIG</span> block at the top of the script.
+    Reference for the <span class="mono">CSUP Auto-Move</span> userscript · v3.10 · To change any rule, edit the <span class="mono">CONFIG</span> block at the top of the script.
   </footer>
 </div>
 </body>

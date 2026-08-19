@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      3.10
+// @version      3.11
 // @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
@@ -118,12 +118,13 @@
       // ENG Team "Experience - Mobile" (14486) + Domain "Mobile" (15083).
       'EEM - Employee Experience Mobile':      { dest: 'eem', engTeam: '14486', domain: '15083' },
       'PLT - Platform':                        { dest: 'deprecated' },
-      'Infosec':                               { dest: 'unsupported' },
+      'Infosec':                               { dest: 'unsupported', message: 'This tool doesn’t support the Infosec CSUP domain as it may not be used anymore. Please either move manually or change the domain.' },
     },
     SUPPORTED_HINT: 'Supported: DELIV, EE, EEA, GOV, INT, PUB, ECOINT, ECOAPI, Operations.',
     MSG_MANUAL: "Sorry — we haven't fully enabled mobile support yet. Please proceed manually.",
     MSG_DEPRECATED: 'That Primary Engineering Domain Team value is no longer in use. Please update it and try again.',
-    MSG_BLANK: 'Please set the Primary Engineering Domain Team before using Auto-Move.',
+    MSG_BLANK: 'Please set the Primary Engineering Domain Team first so that Auto-Move can route to the right project/type and map the Team/Domain fields correctly.',
+    MSG_BUG_BLANK: 'For Mobile CSUPs, please select the Bug value first to ensure routing to the correct FE issue type (Non-Deploy or Bug).',
     // unsupported message is a function of the value:
     msgUnsupported: (t) => 'Auto-Move doesn’t support Primary Engineering Domain Team "' + t + '" yet — please handle this move manually, or correct the field if it was set by mistake.',
   };
@@ -476,7 +477,7 @@ Full diagnostics were copied to my clipboard — pasting below:
     if (r.dest === 'fe') return { dest: 'fe', project: CFG.FE_PROJECT, type: CFG.FE_TYPE, engTeam: r.engTeam, domain: r.domain };
     if (r.dest === 'cloud') return { dest: 'cloud', project: CFG.CLOUD_PROJECT, type: CFG.CLOUD_TYPE };
     if (r.dest === 'eem') return { dest: 'eem', engTeam: r.engTeam, domain: r.domain }; // type decided from the Bug field
-    return { dest: r.dest, team }; // manual / deprecated
+    return { dest: r.dest, team, message: r.message }; // manual / deprecated / unsupported (message optional)
   }
 
   // Best-effort: switch the issue view to the PSE tab (where the team field lives).
@@ -539,15 +540,15 @@ Full diagnostics were copied to my clipboard — pasting below:
     // EEM/mobile: the destination issue type is decided by the source Bug field.
     if (route.dest === 'eem') {
       const bug = (src.bug || '').toString().trim().toLowerCase();
-      if (!bug) { showBanner('Please select the Bug value first, then run Auto-Move again.', 'error', true); return; }
+      if (!bug) { showBanner(CFG.MSG_BUG_BLANK, 'error', true); return; }
       const type = bug === 'yes' ? CFG.FE_TYPE : CFG.NON_DEPLOY_TYPE; // No / TBD → Non-Deploy
       route = { dest: 'fe', project: CFG.FE_PROJECT, type: type, engTeam: route.engTeam, domain: route.domain };
     }
 
     // Block cases — no move; guidance banner (+ PSE tab so they can fix the field).
     if (route.dest === 'blank') { showBanner(CFG.MSG_BLANK, 'error', true); openPseTab(); return; }
-    if (route.dest === 'deprecated') { showBanner(CFG.MSG_DEPRECATED + ' ' + CFG.SUPPORTED_HINT, 'error', true); openPseTab(); return; }
-    if (route.dest === 'unsupported') { showBanner(CFG.msgUnsupported(src.team) + ' ' + CFG.SUPPORTED_HINT, 'error', true); openPseTab(); return; }
+    if (route.dest === 'deprecated') { showBanner(route.message || (CFG.MSG_DEPRECATED + ' ' + CFG.SUPPORTED_HINT), 'error', true); openPseTab(); return; }
+    if (route.dest === 'unsupported') { showBanner(route.message || (CFG.msgUnsupported(src.team) + ' ' + CFG.SUPPORTED_HINT), 'error', true); openPseTab(); return; }
 
     // Proceeding cases — stash context that the wizard/post-move steps need.
     sessionStorage.setItem(SRC_KEY, srcKey);

@@ -310,6 +310,26 @@
     </div>
   </section>
 
+  <section aria-labelledby="msg-h">
+    <h2 id="msg-h">Guidance &amp; error messages</h2>
+    <p>When a move can’t proceed (or needs a field set first), Auto-Move shows a banner instead of moving. Here’s exactly what each one says.</p>
+    <div class="tablecard scroll">
+      <table>
+        <thead>
+          <tr><th>When you’ll see it</th><th>Message</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Primary Engineering Domain Team is <span class="val">blank</span></td><td>Please set the Primary Engineering Domain Team first so that Auto-Move can route to the right project/type and map the Team/Domain fields correctly.</td></tr>
+          <tr><td><span class="val">EEM – Mobile</span>, but the Bug field is blank</td><td>For Mobile CSUPs, please select the Bug value first to ensure routing to the correct FE issue type (Non-Deploy or Bug).</td></tr>
+          <tr><td>Team is <span class="val">Infosec</span></td><td>This tool doesn’t support the Infosec CSUP domain as it may not be used anymore. Please either move manually or change the domain.</td></tr>
+          <tr><td>Team is <span class="val">PLT – Platform</span> (no longer in use)</td><td>That Primary Engineering Domain Team value is no longer in use. Please update it and try again. <span class="mono">Supported: DELIV, EE, EEA, GOV, INT, PUB, ECOINT, ECOAPI, Operations.</span></td></tr>
+          <tr><td>Any other <span class="val">unlisted</span> team value</td><td>Auto-Move doesn’t support Primary Engineering Domain Team "…" yet — please handle this move manually, or correct the field if it was set by mistake. <span class="mono">Supported: DELIV, EE, EEA, GOV, INT, PUB, ECOINT, ECOAPI, Operations.</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:12px; font-size:13.5px; color:var(--ink-faint);">The blank, PLT, Infosec, and unlisted cases don’t move the ticket — they also open the <strong>PSE</strong> tab so you can act on it. All of this text lives in the <span class="mono">CONFIG</span> block and is editable.</p>
+  </section>
+
   <section aria-labelledby="tweak-h">
     <h2 id="tweak-h">What you can change</h2>
     <div class="callout">
@@ -326,7 +346,7 @@
   </section>
 
   <footer>
-    Reference for the <span class="mono">CSUP Auto-Move</span> userscript · v3.10 · To change any rule, edit the <span class="mono">CONFIG</span> block at the top of the script.
+    Reference for the <span class="mono">CSUP Auto-Move</span> userscript · v3.11 · To change any rule, edit the <span class="mono">CONFIG</span> block at the top of the script.
   </footer>
 </div>
 </body>

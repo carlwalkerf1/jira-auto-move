@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      3.12
+// @version      3.13
 // @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
@@ -165,6 +165,21 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const $ = (sel, root = document) => root.querySelector(sel);
 
+  // ---- breadcrumb trail (diagnostics) ----
+  // A rolling log of what Auto-Move did and why it bailed, so a "silent" run
+  // (e.g. a trigger that no-ops because the page wasn't ready) still leaves a
+  // trace. Exposed as window.__feAutoMoveTrail and folded into the failure
+  // snapshot. Pure logging — never affects control flow.
+  const T0 = Date.now();
+  const TRAIL = [];
+  function trail(msg) {
+    const e = { t: Date.now() - T0, msg };
+    TRAIL.push(e);
+    if (TRAIL.length > 60) TRAIL.shift();
+    try { window.__feAutoMoveTrail = TRAIL; } catch (_) { /* ignore */ }
+    try { console.debug('[FE AutoMove] ·', e.t + 'ms', msg); } catch (_) { /* ignore */ }
+  }
+
   function visible(el) {
     if (!el) return false;
     if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return false;
@@ -225,6 +240,7 @@
       when: new Date().toISOString(),
       url: location.href,
       title: document.title,
+      trail: TRAIL.slice(-40),
       detectedStep: detectStep(),
       headings: [...document.querySelectorAll('h1,h2,h3')]
         .map((h) => h.textContent.replace(/\s+/g, ' ').trim()).filter(Boolean),
@@ -288,6 +304,7 @@ Full diagnostics were copied to my clipboard — pasting below:
 
   // Shared failure path: red panel with report/copy buttons + console dump.
   function fail(err) {
+    trail('FAIL: ' + (err && err.message));
     sessionStorage.removeItem(FLAG);
     const data = buildSnapshot(err.message);
     const json = JSON.stringify(data, null, 2);
@@ -506,6 +523,7 @@ Full diagnostics were copied to my clipboard — pasting below:
       $('[data-testid="issue-view-foundation.issue-actions.issue-manipulation-dropdown-group.move-issue.styled-section-move-issue"]') ||
       [...document.querySelectorAll('[role="menuitem"]')].find((m) => norm(m.textContent) === 'move'));
     status('Opening Move…');
+    trail('openMove: clicking Move (navigating to wizard)');
     move.click(); // navigates to /secure/MoveIssue!default.jspa
   }
 
@@ -517,9 +535,14 @@ Full diagnostics were copied to my clipboard — pasting below:
   }
 
   async function startFromIssue() {
+    trail('startFromIssue: begin');
     clearState(); // fresh start every time
     const srcKey = currentIssueKey();
-    if (!srcKey) { showBanner('Could not determine the current issue.', 'error'); return; }
+    if (!srcKey) {
+      trail('startFromIssue: no issue key (page not ready?)');
+      showBanner('The page is still loading — give it a second and try Auto-Move again.', 'error');
+      return;
+    }
 
     // Read assignee + Primary Engineering Domain Team (drives routing; may not
     // survive the move, so we capture it now while still on the CSUP issue).
@@ -533,9 +556,10 @@ Full diagnostics were copied to my clipboard — pasting below:
         team: team ? (team.value !== undefined ? team.value : team.name) : null,
         bug: bug ? (bug.value !== undefined ? bug.value : bug.name) : null,
       };
-    } catch (e) { showBanner('Could not read this issue: ' + e.message, 'error', true); return; }
+    } catch (e) { trail('startFromIssue: read failed — ' + e.message); showBanner('Could not read this issue: ' + e.message, 'error', true); return; }
 
     let route = resolveRoute(src.team);
+    trail('route=' + (route && route.dest) + ' team=' + (src.team || '∅') + ' key=' + srcKey);
 
     // EEM/mobile: the destination issue type is decided by the source Bug field.
     if (route.dest === 'eem') {
@@ -620,7 +644,7 @@ Full diagnostics were copied to my clipboard — pasting below:
       cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,.25)',
     });
     if (CFG.HOTKEY) b.title = 'Keyboard shortcut: ' + CFG.HOTKEY;
-    b.addEventListener('click', () => startFromIssue().catch(fail));
+    b.addEventListener('click', () => { trail('button click'); startFromIssue().catch(fail); });
     document.body.appendChild(b);
   }
 
@@ -663,6 +687,7 @@ Full diagnostics were copied to my clipboard — pasting below:
   // (one PUT), then reporter/unassign (separate PUT so a reporter failure can't
   // block the field writes). Returns the list of what was set.
   async function populateFields(feKey, route) {
+    trail('populateFields: ' + feKey + ' (' + (route && route.dest) + ')');
     const src = JSON.parse(sessionStorage.getItem(SRC_DATA) || '{}');
     const done = [];
 
@@ -926,6 +951,7 @@ Full diagnostics were copied to my clipboard — pasting below:
   async function runStep(step) {
     if (running) return;
     running = true; // stays set for this page load; a full reload resets it
+    trail('wizard step: ' + step);
     await sleep(CFG.STEP_DELAY_MS);
     try {
       if (step === 'select') await stepSelect();
@@ -963,6 +989,7 @@ Full diagnostics were copied to my clipboard — pasting below:
     debounce = setTimeout(tick, 250);
   }).observe(document.documentElement, { childList: true, subtree: true });
 
+  trail('init v3.13 @ ' + location.pathname);
   window.addEventListener('load', () => setTimeout(tick, 400));
   setTimeout(tick, 600);
 
@@ -995,10 +1022,21 @@ Full diagnostics were copied to my clipboard — pasting below:
       if (e.ctrlKey !== HOTKEY.ctrl || e.shiftKey !== HOTKEY.shift ||
           e.altKey !== HOTKEY.alt || e.metaKey !== HOTKEY.meta) return;
       if ((e.key || '').toLowerCase() !== HOTKEY.key) return;
-      if (isEditable(document.activeElement)) return; // not while typing
-      if (!onCsupIssue()) return; // only on a CSUP issue
+      if (isEditable(document.activeElement)) { trail('hotkey ignored: typing in a field'); return; } // not while typing
+      if (!onCsupIssue()) {
+        // The combo matched but this isn't a ready CSUP issue. If the URL/title
+        // looks like a CSUP issue that just hasn't finished rendering, tell the
+        // user instead of silently doing nothing; otherwise stay quiet (the
+        // hotkey is global and may be pressed on unrelated pages).
+        const looksCsup = new RegExp('(/browse/|\\[)' + CFG.SOURCE_PREFIX + '-\\d+', 'i')
+          .test(location.href + ' ' + (document.title || ''));
+        trail('hotkey ignored: not a ready CSUP issue' + (looksCsup ? ' (looks CSUP — still loading?)' : ''));
+        if (looksCsup) showBanner('The page is still loading — give it a second and try Auto-Move again.', 'error');
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
+      trail('hotkey fire');
       startFromIssue().catch(fail);
     }, true);
   }

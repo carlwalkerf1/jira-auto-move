@@ -79,10 +79,10 @@
   .lede { font-size: 17px; color: var(--ink-soft); margin: 0; max-width: 62ch; }
   .trigger {
     margin-top: 18px; display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    font-size: 14px; color: var(--ink-soft);
+    font-size: 15.5px; color: var(--ink-soft);
   }
   .kbd {
-    font-family: var(--font-mono); font-size: 12.5px; background: var(--surface-2);
+    font-family: var(--font-mono); font-size: 13px; background: var(--surface-2);
     border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; color: var(--ink);
   }
   .pill {
@@ -169,14 +169,6 @@
       <span>run from any CSUP issue — the button, or <span class="kbd">Ctrl</span> + <span class="kbd">Shift</span> + <span class="kbd">M</span></span>
     </div>
   </header>
-
-  <section aria-labelledby="scope-h">
-    <h2 id="scope-h">Supported issue type</h2>
-    <div class="callout" style="background: color-mix(in srgb, var(--manual) 8%, var(--surface)); border-color: color-mix(in srgb, var(--manual) 35%, var(--border));">
-      <h3 style="margin-top:0;">⚠️ Only “Customer Issue - Firstup” CSUPs are supported</h3>
-      <p style="margin:0;">Everything Auto-Move does assumes the <strong>Customer Issue - Firstup</strong> issue type. The other CSUP type, <strong>Customer Issue - Dynamic</strong> (the Signal product, which is being retired), is <strong>not supported</strong> — the Auto-Move button won’t appear on those tickets, and the keyboard shortcut refuses with a note. If you’re covering Dynamic CSUPs, please move and fill them in manually.</p>
-    </div>
-  </section>
 
   <section aria-labelledby="flow-h">
     <h2 id="flow-h">The routing at a glance</h2>
@@ -369,11 +361,15 @@
   </section>
 
   <section aria-labelledby="roadmap-h">
-    <h2 id="roadmap-h">Coming soon</h2>
+    <h2 id="roadmap-h">Possible future features</h2>
     <div class="todo">
       <div class="row">
-        <b>Smarter churn handling&nbsp;<span class="tag t-manual">Planned</span></b>
-        <span>For <strong>Operations</strong> tickets flagged as churns (label <span class="mono">pse_churn</span>), Auto-Move will <strong>clone the CSUP before moving</strong>: it moves the <em>clone</em> to Cloud Operations and marks the <em>original</em> CSUP as Done, adding the <span class="mono">pse_close</span> and <span class="mono">pse_ops</span> labels. That leaves a closed record in the CSUP project so the churn still counts toward pse_close targets — which moving it straight to CLOUD would otherwise drop. It also detects a clone you’ve already made (via the “clones” link), so it won’t double-clone. <em>Not live yet.</em></span>
+        <b>Smarter churn handling&nbsp;<span class="tag t-manual">Likelihood: medium</span></b>
+        <span>For <strong>Operations</strong> tickets flagged as churns (label <span class="mono">pse_churn</span>), Auto-Move would <strong>clone the CSUP before moving</strong>: move the <em>clone</em> to Cloud Operations and mark the <em>original</em> CSUP as Done, adding the <span class="mono">pse_close</span> and <span class="mono">pse_ops</span> labels. That leaves a closed record in the CSUP project so the churn still counts toward pse_close targets — which moving it straight to CLOUD would otherwise drop. It would also detect a clone you’ve already made (via the “clones” link) so it won’t double-clone.</span>
+      </div>
+      <div class="row">
+        <b>Dynamic (Signal) CSUP support&nbsp;<span class="tag" style="color:var(--ink-faint); background:color-mix(in srgb, var(--ink-faint) 16%, transparent);">Likelihood: low</span></b>
+        <span>Auto-Move only handles the <strong>Customer Issue - Firstup</strong> type. <strong>Customer Issue - Dynamic</strong> (the Signal product, which is being retired) isn’t supported. Full support is unlikely to be worth building while Signal is on its way out and only one person works those tickets. <strong>For now, the only handling is that the button is hidden on Dynamic issues</strong> — move and fill them in manually.</span>
       </div>
     </div>
   </section>

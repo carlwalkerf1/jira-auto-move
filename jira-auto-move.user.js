@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      3.13
+// @version      3.14
 // @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
@@ -46,6 +46,11 @@
     // Only show the button / allow the shortcut on issues whose key starts with
     // this prefix (the move is <SOURCE_PREFIX> → Firstup Engineering).
     SOURCE_PREFIX: 'CSUP',
+    // CSUP issue types Auto-Move does NOT support. Everything the tool does
+    // assumes "Customer Issue - Firstup"; "Customer Issue - Dynamic" (the Signal
+    // product, on its way out) is intentionally unsupported. On these, the button
+    // is hidden and the shortcut/REST path refuses with MSG_UNSUPPORTED_TYPE.
+    UNSUPPORTED_TYPE_NAMES: ['Customer Issue - Dynamic'],
     // Stamp the source CSUP key into the FE "Original Ticket" field during the
     // move (useful as a queryable link; field id verified live).
     STAMP_ORIGINAL_TICKET: true,
@@ -127,6 +132,7 @@
     MSG_BUG_BLANK: 'For Mobile CSUPs, please select the Bug value first to ensure routing to the correct FE issue type (Non-Deploy or Bug).',
     // unsupported message is a function of the value:
     msgUnsupported: (t) => 'Auto-Move doesn’t support the Primary Engineering Domain Team value "' + t + '" as it didn’t exist when this tool was created. Please contact Carl so that he can add support for it, and in the meantime please move manually.',
+    MSG_UNSUPPORTED_TYPE: 'Auto-Move only supports “Customer Issue - Firstup” CSUPs. This is a “Customer Issue - Dynamic” (Signal) ticket, which isn’t supported — please handle the move manually.',
   };
 
   const SRC_KEY = 'feAutoMove.sourceKey';   // source CSUP key, captured at kickoff
@@ -548,7 +554,15 @@ Full diagnostics were copied to my clipboard — pasting below:
     // survive the move, so we capture it now while still on the CSUP issue).
     let src = { assigneeId: null, team: null, bug: null };
     try {
-      const d = await jiraGet('/rest/api/3/issue/' + srcKey + '?fields=assignee,' + CFG.SOURCE_TEAM_FIELD_ID + ',' + CFG.BUG_FIELD_ID);
+      const d = await jiraGet('/rest/api/3/issue/' + srcKey + '?fields=assignee,issuetype,' + CFG.SOURCE_TEAM_FIELD_ID + ',' + CFG.BUG_FIELD_ID);
+      // Authoritative issue-type gate (the button-hide is best-effort/DOM-based;
+      // this catches a hotkey press or a type the DOM check missed).
+      const itype = d.fields.issuetype && d.fields.issuetype.name;
+      if (itype && CFG.UNSUPPORTED_TYPE_NAMES.indexOf(itype) !== -1) {
+        trail('startFromIssue: unsupported issue type — ' + itype);
+        showBanner(CFG.MSG_UNSUPPORTED_TYPE, 'error', true);
+        return;
+      }
       const team = d.fields[CFG.SOURCE_TEAM_FIELD_ID];
       const bug = d.fields[CFG.BUG_FIELD_ID];
       src = {
@@ -625,12 +639,33 @@ Full diagnostics were copied to my clipboard — pasting below:
     return m ? m[1] : null;
   }
 
+  // The current issue's type name, read synchronously from the issue view (the
+  // type button's aria-label / its icon's alt). Null if not rendered yet.
+  // Verified live: "Customer Issue - Firstup" vs "Customer Issue - Dynamic".
+  function currentIssueType() {
+    const el = document.querySelector('[data-testid*="issue-type.button"]') ||
+               document.querySelector('[data-testid*="issue-type"] img[alt]');
+    if (!el) return null;
+    return (el.getAttribute('aria-label') || el.getAttribute('alt') || '').trim() || null;
+  }
+
+  // True when the current issue's type is one Auto-Move doesn't support (e.g.
+  // "Customer Issue - Dynamic"). Only positive when we can actually read the
+  // type — an unread type never hides the button on a normal Firstup ticket.
+  function onUnsupportedType() {
+    const t = currentIssueType();
+    return !!t && CFG.UNSUPPORTED_TYPE_NAMES.indexOf(t) !== -1;
+  }
+
   // Only show/fire on a <SOURCE_PREFIX> issue (the move is CSUP → FE). Excludes
-  // the wizard and non-CSUP issues (e.g. an already-moved FE ticket).
+  // the wizard, non-CSUP issues (e.g. an already-moved FE ticket), and CSUP
+  // issue types we don't support (Dynamic).
   function onCsupIssue() {
     if (onWizard()) return false;
     const key = currentIssueKey();
-    return !!key && key.toUpperCase().startsWith((CFG.SOURCE_PREFIX + '-').toUpperCase());
+    if (!key || !key.toUpperCase().startsWith((CFG.SOURCE_PREFIX + '-').toUpperCase())) return false;
+    if (onUnsupportedType()) return false; // hide the button on Dynamic etc.
+    return true;
   }
 
   function injectStartButton() {
@@ -1024,10 +1059,15 @@ Full diagnostics were copied to my clipboard — pasting below:
       if ((e.key || '').toLowerCase() !== HOTKEY.key) return;
       if (isEditable(document.activeElement)) { trail('hotkey ignored: typing in a field'); return; } // not while typing
       if (!onCsupIssue()) {
-        // The combo matched but this isn't a ready CSUP issue. If the URL/title
-        // looks like a CSUP issue that just hasn't finished rendering, tell the
-        // user instead of silently doing nothing; otherwise stay quiet (the
+        // The combo matched but this isn't a supported, ready CSUP issue.
+        // Unsupported type (Dynamic) → say so; otherwise, if it looks like a CSUP
+        // that just hasn't rendered → "still loading"; else stay quiet (the
         // hotkey is global and may be pressed on unrelated pages).
+        if (onUnsupportedType()) {
+          trail('hotkey ignored: unsupported issue type — ' + currentIssueType());
+          showBanner(CFG.MSG_UNSUPPORTED_TYPE, 'error', true);
+          return;
+        }
         const looksCsup = new RegExp('(/browse/|\\[)' + CFG.SOURCE_PREFIX + '-\\d+', 'i')
           .test(location.href + ' ' + (document.title || ''));
         trail('hotkey ignored: not a ready CSUP issue' + (looksCsup ? ' (looks CSUP — still loading?)' : ''));

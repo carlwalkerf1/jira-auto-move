@@ -170,6 +170,14 @@
     </div>
   </header>
 
+  <section aria-labelledby="scope-h">
+    <h2 id="scope-h">Supported issue type</h2>
+    <div class="callout" style="background: color-mix(in srgb, var(--manual) 8%, var(--surface)); border-color: color-mix(in srgb, var(--manual) 35%, var(--border));">
+      <h3 style="margin-top:0;">⚠️ Only “Customer Issue - Firstup” CSUPs are supported</h3>
+      <p style="margin:0;">Everything Auto-Move does assumes the <strong>Customer Issue - Firstup</strong> issue type. The other CSUP type, <strong>Customer Issue - Dynamic</strong> (the Signal product, which is being retired), is <strong>not supported</strong> — the Auto-Move button won’t appear on those tickets, and the keyboard shortcut refuses with a note. If you’re covering Dynamic CSUPs, please move and fill them in manually.</p>
+    </div>
+  </section>
+
   <section aria-labelledby="flow-h">
     <h2 id="flow-h">The routing at a glance</h2>
     <figure>
@@ -325,6 +333,7 @@
           <tr><td>Team is <span class="val">PLT – Platform</span> (no longer in use)</td><td>The PLT - Platform option is no longer valid as that team no longer exists. Please update it and try again.</td></tr>
           <tr><td>Any other <span class="val">unlisted</span> team value</td><td>Auto-Move doesn’t support the Primary Engineering Domain Team value "…" as it didn’t exist when this tool was created. Please contact Carl so that he can add support for it, and in the meantime please move manually.</td></tr>
           <tr><td>You trigger it before the issue has finished loading</td><td>The page is still loading — give it a second and try Auto-Move again.</td></tr>
+          <tr><td>You use the shortcut on a <span class="val">Customer Issue - Dynamic</span> ticket</td><td>Auto-Move only supports “Customer Issue - Firstup” CSUPs. This is a “Customer Issue - Dynamic” (Signal) ticket, which isn’t supported — please handle the move manually.</td></tr>
         </tbody>
       </table>
     </div>
@@ -370,7 +379,7 @@
   </section>
 
   <footer>
-    Reference for the <span class="mono">CSUP Auto-Move</span> userscript · v3.13 · To change any rule, edit the <span class="mono">CONFIG</span> block at the top of the script.
+    Reference for the <span class="mono">CSUP Auto-Move</span> userscript · v3.14 · To change any rule, edit the <span class="mono">CONFIG</span> block at the top of the script.
   </footer>
 </div>
 </body>

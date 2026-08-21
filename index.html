@@ -223,7 +223,7 @@
           <rect x="372" y="236" width="7" height="86" rx="3" fill="var(--proceed)"/>
           <text x="394" y="262" font-family="var(--font-sans)" font-size="15" font-weight="700" fill="var(--proceed)">→ Firstup Engineering / Bug or Non-Deploy</text>
           <text x="394" y="283" font-family="var(--font-mono)" font-size="11" fill="var(--ink-soft)">EEM – Employee Experience Mobile</text>
-          <text x="394" y="304" font-family="var(--font-sans)" font-size="12.5" fill="var(--ink-faint)">Type from the Bug field · Yes → Bug · No/TBD → Non-Deploy · blank → set it first</text>
+          <text x="394" y="304" font-family="var(--font-sans)" font-size="12.5" fill="var(--ink-faint)">Type from the Bug field · Yes / TBD → Bug · No → Non-Deploy · blank → set it first</text>
 
           <!-- 4 BLOCK deprecated -->
           <rect x="372" y="334" width="508" height="86" rx="10" fill="var(--surface)" stroke="var(--border)"/>
@@ -254,7 +254,7 @@
         <tbody>
           <tr><td class="mono">DELIV, ECOINT, ECOAPI, EE, EEA, GOV, INT, PUB</td><td><span class="tag t-proceed">Move + auto-fill</span></td><td>Firstup Engineering · <span class="val">Bug</span></td></tr>
           <tr><td class="mono">Operations</td><td><span class="tag t-cloud">Move + reassign</span></td><td>Cloud Operations · <span class="val">Story</span> — sets Reporter, then unassigns</td></tr>
-          <tr><td class="mono">EEM – Employee Experience Mobile</td><td><span class="tag t-proceed">Move + auto-fill</span></td><td>Firstup Engineering · <span class="val">Bug</span> (Bug = Yes) or <span class="val">Non-Deploy</span> (Bug = No/TBD); if Bug is blank, asks you to set it first</td></tr>
+          <tr><td class="mono">EEM – Employee Experience Mobile</td><td><span class="tag t-proceed">Move + auto-fill</span></td><td>Firstup Engineering · <span class="val">Bug</span> (Bug = Yes / TBD) or <span class="val">Non-Deploy</span> (Bug = No); if Bug is blank, asks you to set it first</td></tr>
           <tr><td class="mono">PLT – Platform</td><td><span class="tag t-block">Blocked</span></td><td>“No longer in use” — no move; opens PSE tab</td></tr>
           <tr><td class="mono">Infosec &nbsp;·&nbsp; anything unlisted</td><td><span class="tag t-block">Blocked</span></td><td>“Not supported yet” — no move; opens PSE tab</td></tr>
           <tr><td class="mono">(empty)</td><td><span class="tag t-block">Blocked</span></td><td>“Set the field first” — no move; opens PSE tab</td></tr>
@@ -303,10 +303,16 @@
       <div class="act"><h4>PSE comments preserved</h4><p>PSE-restricted comments are grabbed before the move; afterward you pick which to keep and they’re saved into “PSE Notes.”</p></div>
     </div>
 
-    <h3>You’re reminded to fill (never auto-set)</h3>
+    <h3>Required before moving (or it’s blocked)</h3>
+    <p>Auto-Move won’t move an FE-bound CSUP until these are set on the CSUP — it shows a banner asking you to fill them in first:</p>
+    <div class="actions">
+      <div class="act"><p><span class="val">Bug</span> &nbsp;·&nbsp; <span class="val">Customer Impact</span></p></div>
+    </div>
+
+    <h3>You’re reminded to fill after the move (never auto-set)</h3>
     <p>After the move, a checklist flags any of these that are still empty — the ones only a person can judge:</p>
     <div class="actions">
-      <div class="act"><p><span class="val">Customer Impact</span> &nbsp;·&nbsp; <span class="val">Bug</span> &nbsp;·&nbsp; <span class="val">Escalated?</span> &nbsp;·&nbsp; <span class="val">Regression</span></p></div>
+      <div class="act"><p><span class="val">Escalated?</span> &nbsp;·&nbsp; <span class="val">Regression</span></p></div>
     </div>
   </section>
 
@@ -376,7 +382,7 @@
   </section>
 
   <footer>
-    Reference for the <span class="mono">CSUP Auto-Move</span> userscript · v3.14 · To change any rule, edit the <span class="mono">CONFIG</span> block at the top of the script.
+    Reference for the <span class="mono">CSUP Auto-Move</span> userscript · v3.15 · To change any rule, edit the <span class="mono">CONFIG</span> block at the top of the script.
   </footer>
 </div>
 </body>

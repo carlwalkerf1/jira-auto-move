@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      3.14
+// @version      3.15
 // @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
@@ -25,7 +25,7 @@
   const CFG = {
     // Destination project/type per route (matched by text in the Move wizard).
     FE_PROJECT: 'Firstup Engineering', FE_TYPE: 'Bug',
-    NON_DEPLOY_TYPE: 'Non-Deploy', // EEM with Bug = No/TBD goes here instead of Bug
+    NON_DEPLOY_TYPE: 'Non-Deploy', // EEM with Bug = No goes here instead of Bug
     CLOUD_PROJECT: 'Cloud Operations', CLOUD_TYPE: 'Story',
     // Leave NEW_STATUS null to keep the wizard default (e.g. "Awaiting Triage").
     NEW_STATUS: null,
@@ -75,11 +75,17 @@
     // After the move, remind the user of any of these that are still EMPTY
     // (skips ones they've already set). Shown as a dismissable checklist banner.
     REMIND_EMPTY: true,
+    // Post-move reminder for fields a human must judge. Bug + Customer Impact are
+    // NOT here — they're now REQUIRED before the move (see REQUIRED_BEFORE_MOVE).
     REMINDER_FIELDS: [
-      { id: 'customfield_13599', label: 'Customer Impact' },
-      { id: 'customfield_13228', label: 'Bug' },
       { id: 'customfield_13268', label: 'Escalated?' },
       { id: 'customfield_13258', label: 'Regression' },
+    ],
+    // Fields that must be set on the CSUP BEFORE an FE-bound move (else it's
+    // blocked with a banner). Previously these were nagged about after the move.
+    REQUIRED_BEFORE_MOVE: [
+      { id: 'customfield_13599', label: 'Customer Impact', srcKey: 'customerImpact' },
+      { id: 'customfield_13228', label: 'Bug', srcKey: 'bug' },
     ],
     // Move the previous assignee into Reporter, then unassign (FE route only).
     REASSIGN: true,
@@ -98,7 +104,8 @@
     RELOAD_AFTER_PSE_SAVE: true,
     // Source field driving the routing + FE Domain/ENG-Team destination fields.
     SOURCE_TEAM_FIELD_ID: 'customfield_13198', // Primary Engineering Domain Team
-    BUG_FIELD_ID: 'customfield_13228',         // "Bug" (Yes/No/TBD) — picks the EEM issue type
+    BUG_FIELD_ID: 'customfield_13228',         // "Bug" (Yes/No/TBD) — picks the EEM issue type; required before move
+    CUSTOMER_IMPACT_FIELD_ID: 'customfield_13599', // "Customer Impact" — required before move
     ENG_TEAM_FIELD_ID: 'customfield_13254',
     DOMAIN_FIELD_ID: 'customfield_13237',
 
@@ -552,9 +559,9 @@ Full diagnostics were copied to my clipboard — pasting below:
 
     // Read assignee + Primary Engineering Domain Team (drives routing; may not
     // survive the move, so we capture it now while still on the CSUP issue).
-    let src = { assigneeId: null, team: null, bug: null };
+    let src = { assigneeId: null, team: null, bug: null, customerImpact: null };
     try {
-      const d = await jiraGet('/rest/api/3/issue/' + srcKey + '?fields=assignee,issuetype,' + CFG.SOURCE_TEAM_FIELD_ID + ',' + CFG.BUG_FIELD_ID);
+      const d = await jiraGet('/rest/api/3/issue/' + srcKey + '?fields=assignee,issuetype,' + CFG.SOURCE_TEAM_FIELD_ID + ',' + CFG.BUG_FIELD_ID + ',' + CFG.CUSTOMER_IMPACT_FIELD_ID);
       // Authoritative issue-type gate (the button-hide is best-effort/DOM-based;
       // this catches a hotkey press or a type the DOM check missed).
       const itype = d.fields.issuetype && d.fields.issuetype.name;
@@ -565,10 +572,12 @@ Full diagnostics were copied to my clipboard — pasting below:
       }
       const team = d.fields[CFG.SOURCE_TEAM_FIELD_ID];
       const bug = d.fields[CFG.BUG_FIELD_ID];
+      const ci = d.fields[CFG.CUSTOMER_IMPACT_FIELD_ID];
       src = {
         assigneeId: d.fields.assignee ? d.fields.assignee.accountId : null,
         team: team ? (team.value !== undefined ? team.value : team.name) : null,
         bug: bug ? (bug.value !== undefined ? bug.value : bug.name) : null,
+        customerImpact: ci ? (ci.value !== undefined ? ci.value : ci.name) : null,
       };
     } catch (e) { trail('startFromIssue: read failed — ' + e.message); showBanner('Could not read this issue: ' + e.message, 'error', true); return; }
 
@@ -579,7 +588,7 @@ Full diagnostics were copied to my clipboard — pasting below:
     if (route.dest === 'eem') {
       const bug = (src.bug || '').toString().trim().toLowerCase();
       if (!bug) { showBanner(CFG.MSG_BUG_BLANK, 'error', true); return; }
-      const type = bug === 'yes' ? CFG.FE_TYPE : CFG.NON_DEPLOY_TYPE; // No / TBD → Non-Deploy
+      const type = (bug === 'yes' || bug === 'tbd') ? CFG.FE_TYPE : CFG.NON_DEPLOY_TYPE; // Yes / TBD → Bug ; No → Non-Deploy
       route = { dest: 'fe', project: CFG.FE_PROJECT, type: type, engTeam: route.engTeam, domain: route.domain };
     }
 
@@ -587,6 +596,17 @@ Full diagnostics were copied to my clipboard — pasting below:
     if (route.dest === 'blank') { showBanner(CFG.MSG_BLANK, 'error', true); openPseTab(); return; }
     if (route.dest === 'deprecated') { showBanner(route.message || CFG.MSG_DEPRECATED, 'error', true); openPseTab(); return; }
     if (route.dest === 'unsupported') { showBanner(route.message || CFG.msgUnsupported(src.team), 'error', true); openPseTab(); return; }
+
+    // Required-before-move gate (FE-bound routes): Bug + Customer Impact must be
+    // set on the CSUP first. Previously these were nagged about after the move.
+    if (route.dest === 'fe') {
+      const missing = (CFG.REQUIRED_BEFORE_MOVE || []).filter((f) => !src[f.srcKey]).map((f) => f.label);
+      if (missing.length) {
+        trail('blocked: required-before-move missing — ' + missing.join(', '));
+        showBanner('Please set ' + missing.join(' and ') + ' on the CSUP before moving, then run Auto-Move again.', 'error', true);
+        return;
+      }
+    }
 
     // Proceeding cases — stash context that the wizard/post-move steps need.
     sessionStorage.setItem(SRC_KEY, srcKey);

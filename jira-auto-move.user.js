@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      3.16
+// @version      3.17
 // @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
@@ -43,6 +43,18 @@
     // Format: modifiers + key, e.g. 'Ctrl+Shift+M', 'Alt+M', 'Ctrl+Alt+B'.
     // Set to null to disable. Only fires on an open issue, never while typing.
     HOTKEY: 'Ctrl+Shift+M',
+    // --- Move Back (private test-cleanup tool) ---
+    // Reverse an already-moved FE issue back to a CSUP as "Customer Issue - Dynamic"
+    // (fewest required fields on the move), for re-testing/cleanup without minting new
+    // CSUPs. Gated to specific accounts so it's invisible/undiscoverable to the team:
+    // no button, hotkey only, and a confirm before it acts. The CSUP still has to be
+    // deleted manually afterward (we never auto-delete).
+    MOVE_BACK_ENABLED: true,
+    MOVE_BACK_HOTKEY: 'Ctrl+Shift+B',
+    MOVE_BACK_ACCOUNT_IDS: ['61a8d611c75da800720c3817'], // Carl only
+    MOVE_BACK_PROJECT: 'Customer Support',
+    MOVE_BACK_TYPE: 'Customer Issue - Dynamic',
+    msgMoveBackConfirm: (key) => 'Move ' + key + ' back to Customer Support as “Customer Issue - Dynamic” (test cleanup)? You’ll still need to delete the CSUP manually afterward.',
     // Only show the button / allow the shortcut on issues whose key starts with
     // this prefix (the move is <SOURCE_PREFIX> → Firstup Engineering).
     SOURCE_PREFIX: 'CSUP',
@@ -848,6 +860,11 @@ Full diagnostics were copied to my clipboard — pasting below:
     if (!key) return;                       // issue not resolved yet; retry next tick
     sessionStorage.removeItem(MOVED_KEY);   // fire once
     const route = JSON.parse(sessionStorage.getItem(ROUTE_KEY) || '{}');
+    if (route.dest === 'moveback') {
+      trail('move-back: landed on ' + key);
+      showBanner('✅ Moved back to ' + key + ' (Customer Issue - Dynamic). Delete it when you’re done testing.', 'done');
+      return; // no field populate / reminders / PSE panel on a move-back
+    }
     if (!CFG.POPULATE_FIELDS) { showBanner('✅ Moved to ' + key + '.', 'done'); return; }
     showBanner('⏳ Moved to ' + key + ' — setting fields…', 'working');
     // Suppress the PSE panel until the populate + reload settle (else it flashes
@@ -1099,6 +1116,83 @@ Full diagnostics were copied to my clipboard — pasting below:
       e.stopPropagation();
       trail('hotkey fire');
       startFromIssue().catch(fail);
+    }, true);
+  }
+
+  /* ===================== Move Back (private cleanup) ===================== */
+  // Reverse an already-moved FE issue back to a CSUP (as Customer Issue - Dynamic)
+  // so it can be re-tested / cleaned up. Account-gated → invisible to everyone else.
+  let _acctId; // cached current-user accountId (lazy)
+  async function currentAccountId() {
+    if (_acctId !== undefined) return _acctId;
+    try { const m = await jiraGet('/rest/api/3/myself'); _acctId = m.accountId; }
+    catch (e) { _acctId = null; }
+    return _acctId;
+  }
+
+  function onFeIssue() {
+    if (onWizard()) return false;
+    const k = currentIssueKey();
+    return !!k && k.toUpperCase().startsWith('FE-');
+  }
+
+  // Dedicated interactive confirm banner (the status/error banners aren't clickable).
+  function showMoveBackConfirm(key) {
+    const old = document.getElementById('fe-automove-moveback');
+    if (old) old.remove();
+    const el = document.createElement('div');
+    el.id = 'fe-automove-moveback';
+    Object.assign(el.style, {
+      position: 'fixed', top: '16px', left: '50%', transform: 'translateX(-50%)',
+      zIndex: 2147483647, color: '#fff', font: '13px/1.45 -apple-system,system-ui,sans-serif',
+      background: '#172b4d', padding: '12px 16px', borderRadius: '8px',
+      boxShadow: '0 4px 16px rgba(0,0,0,.35)', maxWidth: '520px', textAlign: 'center',
+    });
+    const msg = document.createElement('div');
+    msg.textContent = CFG.msgMoveBackConfirm(key);
+    msg.style.marginBottom = '10px';
+    el.appendChild(msg);
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; gap:8px; justify-content:center;';
+    const mk = (label, bg, fn) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.style.cssText = 'border:none; border-radius:6px; padding:7px 14px; cursor:pointer; color:#fff;' +
+        'font:13px -apple-system,system-ui,sans-serif; background:' + bg + ';';
+      b.addEventListener('click', fn);
+      return b;
+    };
+    row.appendChild(mk('Move back', '#bf2600', () => { el.remove(); startMoveBack(); }));
+    row.appendChild(mk('Cancel', '#5e6c84', () => el.remove()));
+    el.appendChild(row);
+    document.body.appendChild(el);
+  }
+
+  function startMoveBack() {
+    clearState(); // fresh state, then set up the reverse route
+    sessionStorage.setItem(ROUTE_KEY, JSON.stringify({
+      dest: 'moveback', project: CFG.MOVE_BACK_PROJECT, type: CFG.MOVE_BACK_TYPE,
+    }));
+    sessionStorage.setItem(FLAG, '1'); // let the wizard driver auto-run the steps
+    trail('move-back: kickoff → ' + CFG.MOVE_BACK_PROJECT + ' / ' + CFG.MOVE_BACK_TYPE);
+    openMove().catch(fail);
+  }
+
+  const MOVE_BACK_HOTKEY = parseHotkey(CFG.MOVE_BACK_HOTKEY);
+  if (CFG.MOVE_BACK_ENABLED && MOVE_BACK_HOTKEY) {
+    window.addEventListener('keydown', async (e) => {
+      if (e.repeat) return;
+      if (e.ctrlKey !== MOVE_BACK_HOTKEY.ctrl || e.shiftKey !== MOVE_BACK_HOTKEY.shift ||
+          e.altKey !== MOVE_BACK_HOTKEY.alt || e.metaKey !== MOVE_BACK_HOTKEY.meta) return;
+      if ((e.key || '').toLowerCase() !== MOVE_BACK_HOTKEY.key) return;
+      if (isEditable(document.activeElement)) return; // not while typing
+      if (!onFeIssue()) return;                        // only on FE issues; silent elsewhere
+      const acct = await currentAccountId();
+      if (!acct || CFG.MOVE_BACK_ACCOUNT_IDS.indexOf(acct) === -1) return; // not for this user → silent
+      e.preventDefault();
+      e.stopPropagation();
+      trail('move-back hotkey fire on ' + currentIssueKey());
+      showMoveBackConfirm(currentIssueKey());
     }, true);
   }
 })();

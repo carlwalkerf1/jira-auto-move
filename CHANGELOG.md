@@ -4,6 +4,13 @@ All notable changes to the **CSUP Auto-Move** userscript. Newest first.
 The version here matches the `@version` in `jira-auto-move.user.js`; bumping it is
 what triggers Tampermonkey to auto-update everyone.
 
+## v3.17 — 2026-08-21
+- **"Move Back" cleanup tool (private, maintainer-only).** A hotkey (`Ctrl+Shift+B`) on an FE
+  issue moves it back to a CSUP as "Customer Issue - Dynamic" (fewest required fields), after a
+  confirm — for re-testing/cleaning up test tickets without creating new CSUPs. It's **account-
+  gated**, so it's invisible and inert for everyone else (no button; hotkey only). Deletion of
+  the resulting CSUP stays manual.
+
 ## v3.16 — 2026-08-21
 - **Stopped stamping the "Original Ticket" field.** Jira already keeps the pre-move
   CSUP key as a permanent redirect and in the issue history, and nobody queries the

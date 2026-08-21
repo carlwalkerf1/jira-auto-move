@@ -361,16 +361,16 @@
   </section>
 
   <section aria-labelledby="roadmap-h">
-    <h2 id="roadmap-h">Unlikely extras</h2>
-    <p>Being honest: these are ideas, not commitments. The tool already does more than it strictly needs to, and there’s little real demand for either — they’re noted here so the thinking isn’t lost.</p>
+    <h2 id="roadmap-h">Possible future features</h2>
+    <p>Ideas, not planned work — noted here so the thinking isn’t lost.</p>
     <div class="todo">
       <div class="row">
-        <b>Smarter churn handling&nbsp;<span class="tag t-manual">Maybe someday</span></b>
-        <span>For <strong>Operations</strong> churns (label <span class="mono">pse_churn</span>), Auto-Move could <strong>clone the CSUP first</strong>, move the <em>clone</em> to Cloud Operations, and mark the <em>original</em> Done with the <span class="mono">pse_close</span> / <span class="mono">pse_ops</span> labels — so the churn still counts toward pse_close targets after it leaves the CSUP project. It’s fully specced and would work, but it’s already well past what this tool needs to do; only worth building if that metric gap actually starts to hurt.</span>
+        <b>Smarter churn handling&nbsp;<span class="tag t-manual">Possible eventually</span></b>
+        <span>For <strong>Operations</strong> churns (label <span class="mono">pse_churn</span>), Auto-Move could <strong>clone the CSUP first</strong>, move the <em>clone</em> to Cloud Operations, and mark the <em>original</em> Done with the <span class="mono">pse_close</span> / <span class="mono">pse_ops</span> labels — so the churn still counts toward pse_close targets after it leaves the CSUP project. It would also detect a clone you’ve already made (via the “clones” link) so it won’t double-clone.</span>
       </div>
       <div class="row">
-        <b>Dynamic (Signal) CSUP support&nbsp;<span class="tag t-block">Unlikely</span></b>
-        <span>Realistically, no one wants this. <strong>Customer Issue - Dynamic</strong> is the Signal product, which is being retired, and only one person works those tickets — so it almost certainly won’t be built. <strong>For now the button is simply hidden on Dynamic issues</strong>; move and fill them in manually.</span>
+        <b>Dynamic (Signal) CSUP support&nbsp;<span class="tag" style="color:var(--ink-faint); background:color-mix(in srgb, var(--ink-faint) 16%, transparent);">Long shot</span></b>
+        <span>Auto-Move only handles the <strong>Customer Issue - Firstup</strong> type; <strong>Customer Issue - Dynamic</strong> (the Signal product, which is being retired) isn’t supported. <strong>For now the button is simply hidden on Dynamic issues</strong> — move and fill them in manually.</span>
       </div>
     </div>
   </section>

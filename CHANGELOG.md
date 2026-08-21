@@ -1,0 +1,54 @@
+# Changelog
+
+All notable changes to the **CSUP Auto-Move** userscript. Newest first.
+The version here matches the `@version` in `jira-auto-move.user.js`; bumping it is
+what triggers Tampermonkey to auto-update everyone.
+
+## v3.16 — 2026-08-21
+- **Stopped stamping the "Original Ticket" field.** Jira already keeps the pre-move
+  CSUP key as a permanent redirect and in the issue history, and nobody queries the
+  field — so it was redundant. (`STAMP_ORIGINAL_TICKET` is now `false`.)
+
+## v3.15 — 2026-08-21
+- **Bug and Customer Impact are now required *before* an FE-bound move.** If either is
+  empty on the CSUP, the move is blocked with a banner asking you to fill them in first
+  (previously they were nagged about *after* the move). Post-move reminder is now just
+  Escalated? and Regression.
+- **EEM / Mobile issue-type mapping:** Bug = **Yes or TBD → Bug**; only Bug = **No → Non-Deploy**
+  (TBD used to go to Non-Deploy).
+
+## v3.14 — 2026-08-21
+- **"Customer Issue - Dynamic" (Signal) CSUPs are not supported.** The Auto-Move button is
+  hidden on them, and the keyboard shortcut refuses with a note. Everything assumes the
+  "Customer Issue - Firstup" type.
+
+## v3.13 — 2026-08-20
+- **Stability / diagnostics.** Added a breadcrumb trail of what the tool did (and why it
+  bailed), folded into the "Send to Carl" failure report so previously-silent hiccups are
+  diagnosable. Added a "page is still loading — try again" banner when triggered before the
+  issue view is ready, instead of silently doing nothing.
+
+## v3.12 — 2026-08-19
+- Friendlier, PLT-specific and unlisted-team banner copy (dropped the appended "supported
+  teams" list).
+
+## v3.11 — 2026-08-19
+- Friendlier blank-team, EEM/Bug-blank, and Infosec-specific banner copy. Added a
+  "Guidance & error messages" table to the rules page.
+
+## v3.10 — 2026-08-19
+- **CLOUD / Operations route** now sets the Reporter to the previous assignee, then
+  unassigns (after IT granted the Reporter permission on Cloud Operations).
+
+## Earlier (pre-3.10, summarized)
+- Began as a one-click **CSUP → Firstup Engineering / Bug** move for the classic Jira Move
+  wizard, plus a `Ctrl+Shift+M` shortcut and a floating button shown only on CSUP issues.
+- Grew into a **routing engine** keyed on **Primary Engineering Domain Team**: standard
+  teams → FE/Bug with field auto-populate; **Operations** → Cloud Operations / Story;
+  **EEM** → FE Bug or Non-Deploy (by the Bug field); **PLT / Infosec / blank / unknown** →
+  guidance banners (and the PSE tab).
+- Post-move field population via the Jira REST API as the current user; copies the
+  description into the "CSUP ticket" field; captures PSE-restricted comments before the
+  move and offers them for "PSE Notes" after.
+- Distribution via **github.com/carlwalkerf1/jira-auto-move** (Tampermonkey auto-updates on
+  a `@version` bump) with a public GitHub Pages rules page.

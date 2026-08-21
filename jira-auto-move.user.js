@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      3.15
+// @version      3.16
 // @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
@@ -52,8 +52,9 @@
     // is hidden and the shortcut/REST path refuses with MSG_UNSUPPORTED_TYPE.
     UNSUPPORTED_TYPE_NAMES: ['Customer Issue - Dynamic'],
     // Stamp the source CSUP key into the FE "Original Ticket" field during the
-    // move (useful as a queryable link; field id verified live).
-    STAMP_ORIGINAL_TICKET: true,
+    // move. Disabled as of v3.16: Jira keeps the pre-move CSUP key as a permanent
+    // redirect + in history, and no one queries this field — so it was redundant.
+    STAMP_ORIGINAL_TICKET: false,
     ORIGINAL_TICKET_FIELD_ID: 'customfield_13149',
     // Show a banner on the destination issue confirming the move + field writes.
     POST_MOVE_BANNER: true,

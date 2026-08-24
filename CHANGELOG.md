@@ -4,6 +4,13 @@ All notable changes to the **CSUP Auto-Move** userscript. Newest first.
 The version here matches the `@version` in `jira-auto-move.user.js`; bumping it is
 what triggers Tampermonkey to auto-update everyone.
 
+## v3.18 — 2026-08-21
+- **"Keep this tab focused" guard.** Switching browser tabs mid-move can stall the wizard
+  (browsers throttle background tabs and block focus), sometimes with no visible error. The
+  progress badge now reminds you to stay on the tab while a move runs, and a breadcrumb
+  records if the tab was backgrounded during a move (so a failure report shows it). Added a
+  matching tip to the rules page.
+
 ## v3.17 — 2026-08-21
 - **"Move Back" cleanup tool (private, maintainer-only).** A hotkey (`Ctrl+Shift+B`) on an FE
   issue moves it back to a CSUP as "Customer Issue - Dynamic" (fewest required fields), after a

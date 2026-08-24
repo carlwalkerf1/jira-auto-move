@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      3.17
+// @version      3.18
 // @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
@@ -227,7 +227,7 @@
 
   /* ===================== status badge ===================== */
 
-  let badge;
+  let badge, badgeMsg, badgeHint;
   function status(msg, kind = 'info') {
     console.log('[FE AutoMove]', msg);
     if (!badge) {
@@ -238,10 +238,20 @@
         background: '#0052cc', padding: '8px 12px', borderRadius: '6px',
         boxShadow: '0 2px 8px rgba(0,0,0,.25)', maxWidth: '320px', pointerEvents: 'none',
       });
+      badgeMsg = document.createElement('div');
+      badgeHint = document.createElement('div');
+      badgeHint.style.cssText = 'margin-top:5px; font-size:11.5px; opacity:.92;';
+      badge.appendChild(badgeMsg);
+      badge.appendChild(badgeHint);
       document.body.appendChild(badge);
     }
     badge.style.background = kind === 'error' ? '#bf2600' : kind === 'done' ? '#006644' : '#0052cc';
-    badge.textContent = 'Auto-Move: ' + msg;
+    badgeMsg.textContent = 'Auto-Move: ' + msg;
+    // While a move is actively running (info state), remind the user not to switch
+    // tabs — browsers throttle background tabs and block focus on inactive docs,
+    // which can stall this timer-driven, multi-step wizard.
+    badgeHint.textContent = (kind === 'info') ? '⚠ Keep this tab open and focused until it finishes.' : '';
+    badgeHint.style.display = badgeHint.textContent ? 'block' : 'none';
   }
 
   /* ===================== diagnostics snapshot ===================== */
@@ -1062,9 +1072,19 @@ Full diagnostics were copied to my clipboard — pasting below:
     debounce = setTimeout(tick, 250);
   }).observe(document.documentElement, { childList: true, subtree: true });
 
-  trail('init v3.13 @ ' + location.pathname);
+  trail('init v3.18 @ ' + location.pathname);
   window.addEventListener('load', () => setTimeout(tick, 400));
   setTimeout(tick, 600);
+
+  // If the user switches away while a move is running, record it — browsers throttle
+  // background tabs (and deny focus to inactive docs), which can stall the wizard.
+  // This breadcrumb makes that visible in a failure report; the status badge also
+  // warns the user to stay put while it runs.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && sessionStorage.getItem(FLAG) === '1') {
+      trail('⚠ tab backgrounded during active move (step=' + detectStep() + ') — may stall');
+    }
+  });
 
   /* ===================== keyboard shortcut ===================== */
 

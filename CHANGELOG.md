@@ -4,6 +4,11 @@ All notable changes to the **CSUP Auto-Move** userscript. Newest first.
 The version here matches the `@version` in `jira-auto-move.user.js`; bumping it is
 what triggers Tampermonkey to auto-update everyone.
 
+## v3.19 — 2026-08-24
+- **Field-fix banners now open the PSE tab.** When a move is blocked because a required field
+  is missing — Bug or Customer Impact (any FE move), or Bug on a Mobile/EEM CSUP — Auto-Move now
+  jumps you to the PSE tab so you can fill it in, matching the blank/PLT/Infosec/unlisted cases.
+
 ## v3.18 — 2026-08-21
 - **"Keep this tab focused" guard.** Switching browser tabs mid-move can stall the wizard
   (browsers throttle background tabs and block focus), sometimes with no visible error. The

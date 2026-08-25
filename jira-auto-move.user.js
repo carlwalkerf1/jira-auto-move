@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      3.18
+// @version      3.19
 // @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
@@ -610,7 +610,7 @@ Full diagnostics were copied to my clipboard — pasting below:
     // EEM/mobile: the destination issue type is decided by the source Bug field.
     if (route.dest === 'eem') {
       const bug = (src.bug || '').toString().trim().toLowerCase();
-      if (!bug) { showBanner(CFG.MSG_BUG_BLANK, 'error', true); return; }
+      if (!bug) { showBanner(CFG.MSG_BUG_BLANK, 'error', true); openPseTab(); return; }
       const type = (bug === 'yes' || bug === 'tbd') ? CFG.FE_TYPE : CFG.NON_DEPLOY_TYPE; // Yes / TBD → Bug ; No → Non-Deploy
       route = { dest: 'fe', project: CFG.FE_PROJECT, type: type, engTeam: route.engTeam, domain: route.domain };
     }
@@ -627,6 +627,7 @@ Full diagnostics were copied to my clipboard — pasting below:
       if (missing.length) {
         trail('blocked: required-before-move missing — ' + missing.join(', '));
         showBanner('Please set ' + missing.join(' and ') + ' on the CSUP before moving, then run Auto-Move again.', 'error', true);
+        openPseTab(); // these are PSE-tab fields — jump the user there to fill them in
         return;
       }
     }
@@ -1072,7 +1073,7 @@ Full diagnostics were copied to my clipboard — pasting below:
     debounce = setTimeout(tick, 250);
   }).observe(document.documentElement, { childList: true, subtree: true });
 
-  trail('init v3.18 @ ' + location.pathname);
+  trail('init v3.19 @ ' + location.pathname);
   window.addEventListener('load', () => setTimeout(tick, 400));
   setTimeout(tick, 600);
 

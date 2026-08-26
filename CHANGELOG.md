@@ -4,6 +4,13 @@ All notable changes to the **CSUP Auto-Move** userscript. Newest first.
 The version here matches the `@version` in `jira-auto-move.user.js`; bumping it is
 what triggers Tampermonkey to auto-update everyone.
 
+## Docs — 2026-08-26 (no version bump, page only)
+- Documented a known limitation: **images embedded in PSE comments don’t carry over**
+  into PSE Notes after a move (text/links do). Confirmed on FE-37231 — the comment’s
+  media IDs weren’t attached to the destination issue, so Jira shows “Preview
+  unavailable.” Description images are unaffected (those are issue attachments, which
+  do move). Added to the rules page’s “Possible future features” as a long shot.
+
 ## v3.19 — 2026-08-24
 - **Field-fix banners now open the PSE tab.** When a move is blocked because a required field
   is missing — Bug or Customer Impact (any FE move), or Bug on a Mobile/EEM CSUP — Auto-Move now

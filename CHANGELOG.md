@@ -11,6 +11,11 @@ what triggers Tampermonkey to auto-update everyone.
   unavailable.” Description images are unaffected (those are issue attachments, which
   do move). Added to the rules page’s “Possible future features” as a long shot.
 
+## v3.20 — 2026-09-02
+- **Re-enabled stamping the "Original Ticket" field** on FE-bound moves (disabled since
+  v3.16). Restores the queryable source-ticket link, and doubles as an invisible signal
+  for adoption tracking — no visible label needed.
+
 ## v3.19 — 2026-08-24
 - **Field-fix banners now open the PSE tab.** When a move is blocked because a required field
   is missing — Bug or Customer Impact (any FE move), or Bug on a Mobile/EEM CSUP — Auto-Move now

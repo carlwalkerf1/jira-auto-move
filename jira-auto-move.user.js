@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      3.19
+// @version      3.20
 // @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
@@ -64,9 +64,12 @@
     // is hidden and the shortcut/REST path refuses with MSG_UNSUPPORTED_TYPE.
     UNSUPPORTED_TYPE_NAMES: ['Customer Issue - Dynamic'],
     // Stamp the source CSUP key into the FE "Original Ticket" field during the
-    // move. Disabled as of v3.16: Jira keeps the pre-move CSUP key as a permanent
-    // redirect + in history, and no one queries this field — so it was redundant.
-    STAMP_ORIGINAL_TICKET: false,
+    // move. Disabled in v3.16 (redundant — no one queried it), re-enabled in v3.20
+    // as an invisible marker for adoption tracking: any FE issue with this field
+    // populated was moved by Auto-Move (manual moves never fill it in), which lets
+    // "% of CSUP→FE moves done via the tool" be measured via JQL — no visible
+    // label needed.
+    STAMP_ORIGINAL_TICKET: true,
     ORIGINAL_TICKET_FIELD_ID: 'customfield_13149',
     // Show a banner on the destination issue confirming the move + field writes.
     POST_MOVE_BANNER: true,
@@ -1073,7 +1076,7 @@ Full diagnostics were copied to my clipboard — pasting below:
     debounce = setTimeout(tick, 250);
   }).observe(document.documentElement, { childList: true, subtree: true });
 
-  trail('init v3.19 @ ' + location.pathname);
+  trail('init v3.20 @ ' + location.pathname);
   window.addEventListener('load', () => setTimeout(tick, 400));
   setTimeout(tick, 600);
 

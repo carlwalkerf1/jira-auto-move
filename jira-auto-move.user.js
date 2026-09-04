@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      3.21
+// @version      3.22
 // @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
@@ -127,6 +127,19 @@
     SOURCE_TEAM_FIELD_ID: 'customfield_13198', // Primary Engineering Domain Team
     BUG_FIELD_ID: 'customfield_13228',         // "Bug" (Yes/No/TBD) — picks the EEM issue type; required before move
     CUSTOMER_IMPACT_FIELD_ID: 'customfield_13599', // "Customer Impact" — required before move
+    // Map the CSUP's Customer Impact straight onto the FE Priority field (FE route
+    // only — Customer Impact isn't required/guaranteed on the CLOUD route). Keyed by
+    // the exact Customer Impact option label; values are FE's system Priority ids
+    // (verified live: 1=Blocker(P0) [unused by this mapping], 2=Critical(P1),
+    // 3=Major(P2), 4=Default(P3)).
+    MAP_CUSTOMER_IMPACT_TO_PRIORITY: true,
+    CUSTOMER_IMPACT_TO_PRIORITY_ID: {
+      '1. Critical (Core feature unusable, no workaround, reported by high risk customers)': '2', // Critical (P1)
+      '2. Major (Feature unusable, no workaround)': '3',                                          // Major (P2)
+      '3. High (Feature unusable, workaround exists)': '3',                                       // Major (P2)
+      '4. Medium (Part of feature unusable)': '4',                                                // Default (P3)
+      '5. Low (Feature degraded but usable; Cosmetic / non-functional issue)': '4',                // Default (P3)
+    },
     ENG_TEAM_FIELD_ID: 'customfield_13254',
     DOMAIN_FIELD_ID: 'customfield_13237',
 
@@ -812,6 +825,11 @@ Full diagnostics were copied to my clipboard — pasting below:
       fields[CFG.ENG_TEAM_FIELD_ID] = { id: route.engTeam };
       done.push('Domain/ENG Team');
     }
+    if (CFG.MAP_CUSTOMER_IMPACT_TO_PRIORITY && src.customerImpact) {
+      const pid = CFG.CUSTOMER_IMPACT_TO_PRIORITY_ID[src.customerImpact];
+      if (pid) { fields.priority = { id: pid }; done.push('Priority'); }
+      else trail('populateFields: no Priority mapping for Customer Impact = "' + src.customerImpact + '"');
+    }
     if (Object.keys(fields).length) await jiraPut('/rest/api/3/issue/' + feKey, { fields });
     if (CFG.REASSIGN && reporter.id) {
       await jiraPut('/rest/api/3/issue/' + feKey, {
@@ -1093,7 +1111,7 @@ Full diagnostics were copied to my clipboard — pasting below:
     debounce = setTimeout(tick, 250);
   }).observe(document.documentElement, { childList: true, subtree: true });
 
-  trail('init v3.21 @ ' + location.pathname);
+  trail('init v3.22 @ ' + location.pathname);
   window.addEventListener('load', () => setTimeout(tick, 400));
   setTimeout(tick, 600);
 

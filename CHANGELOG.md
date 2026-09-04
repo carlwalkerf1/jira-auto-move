@@ -11,6 +11,12 @@ what triggers Tampermonkey to auto-update everyone.
   unavailable.” Description images are unaffected (those are issue attachments, which
   do move). Added to the rules page’s “Possible future features” as a long shot.
 
+## v3.22 — 2026-09-02
+- **Customer Impact → Priority mapping (FE route).** The CSUP's Customer Impact now sets
+  Priority on the destination FE issue: Critical → Critical (P1); Major/High → Major (P2);
+  Medium/Low → Default (P3). Bundled into the existing constants/Domain/ENG-Team PUT — no
+  extra request. Config `MAP_CUSTOMER_IMPACT_TO_PRIORITY` / `CUSTOMER_IMPACT_TO_PRIORITY_ID`.
+
 ## v3.21 — 2026-09-02
 - **Reporter fallback to self on an unassigned CSUP.** If the CSUP had no assignee (the
   PSE forgot to assign it to themselves before moving), Reporter on the destination now

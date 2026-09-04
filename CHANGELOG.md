@@ -11,6 +11,10 @@ what triggers Tampermonkey to auto-update everyone.
   unavailable.” Description images are unaffected (those are issue attachments, which
   do move). Added to the rules page’s “Possible future features” as a long shot.
 
+## Docs — 2026-09-02 (no version bump, page only)
+- Added "Specific rules for incident CSUPs" to "Possible future features" — an unscoped
+  idea (incident-related CSUPs may warrant different routing/fields), noted for later.
+
 ## v3.22 — 2026-09-02
 - **Customer Impact → Priority mapping (FE route).** The CSUP's Customer Impact now sets
   Priority on the destination FE issue: Critical → Critical (P1); Major/High → Major (P2);

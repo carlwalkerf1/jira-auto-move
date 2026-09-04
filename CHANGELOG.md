@@ -11,6 +11,12 @@ what triggers Tampermonkey to auto-update everyone.
   unavailable.” Description images are unaffected (those are issue attachments, which
   do move). Added to the rules page’s “Possible future features” as a long shot.
 
+## v3.21 — 2026-09-02
+- **Reporter fallback to self on an unassigned CSUP.** If the CSUP had no assignee (the
+  PSE forgot to assign it to themselves before moving), Reporter on the destination now
+  falls back to whoever ran Auto-Move, instead of being left unset. Applies to both the
+  FE and CLOUD/Operations routes. Toggle: `REPORTER_FALLBACK_TO_SELF`.
+
 ## v3.20 — 2026-09-02
 - **Re-enabled stamping the "Original Ticket" field** on FE-bound moves (disabled since
   v3.16). Restores the queryable source-ticket link, and doubles as an invisible signal

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      3.20
+// @version      3.21
 // @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
@@ -103,8 +103,13 @@
       { id: 'customfield_13599', label: 'Customer Impact', srcKey: 'customerImpact' },
       { id: 'customfield_13228', label: 'Bug', srcKey: 'bug' },
     ],
-    // Move the previous assignee into Reporter, then unassign (FE route only).
+    // Move the previous assignee into Reporter, then unassign (FE and CLOUD routes).
     REASSIGN: true,
+    // If the CSUP had NO assignee (the PSE forgot to assign it to themselves before
+    // moving), fall back to setting Reporter = whoever ran Auto-Move, rather than
+    // leaving Reporter unset. Low-risk: Reporter is informational and always
+    // correctable by hand; set to false to require self-assigning before moving.
+    REPORTER_FALLBACK_TO_SELF: true,
     // Copy the (moved) issue's Description ADF into the FE "CSUP ticket" field
     // (rich-text/textarea → preserves formatting; images resolve as the
     // attachments moved with the issue). Best-effort: failure never blocks the move.
@@ -768,17 +773,29 @@ Full diagnostics were copied to my clipboard — pasting below:
   // Populate the destination FE Bug via REST: constants + mapped Domain/ENG Team
   // (one PUT), then reporter/unassign (separate PUT so a reporter failure can't
   // block the field writes). Returns the list of what was set.
+  // Reporter to use for the destination issue: the CSUP's previous assignee, or
+  // (if it had none and the fallback is enabled) whoever is running Auto-Move.
+  async function resolveReporterId(assigneeId) {
+    if (assigneeId) return { id: assigneeId, isFallback: false };
+    if (!CFG.REPORTER_FALLBACK_TO_SELF) return { id: null, isFallback: false };
+    const me = await currentAccountId();
+    return { id: me, isFallback: !!me };
+  }
+
   async function populateFields(feKey, route) {
     trail('populateFields: ' + feKey + ' (' + (route && route.dest) + ')');
     const src = JSON.parse(sessionStorage.getItem(SRC_DATA) || '{}');
     const done = [];
+    const reporter = await resolveReporterId(src.assigneeId);
+    if (reporter.isFallback) trail('populateFields: CSUP had no assignee — Reporter falling back to self');
 
-    // CLOUD/Operations route: set Reporter to the previous assignee, then unassign
-    // (IT granted the Reporter permission on Cloud Operations as of v3.10).
+    // CLOUD/Operations route: set Reporter to the previous assignee (or self, if
+    // the CSUP had none), then unassign (IT granted the Reporter permission on
+    // Cloud Operations as of v3.10).
     if (route.dest === 'cloud') {
-      if (CFG.REASSIGN && src.assigneeId) {
-        await jiraPut('/rest/api/3/issue/' + feKey, { fields: { reporter: { accountId: src.assigneeId }, assignee: null } });
-        done.push('reporter/unassign');
+      if (CFG.REASSIGN && reporter.id) {
+        await jiraPut('/rest/api/3/issue/' + feKey, { fields: { reporter: { accountId: reporter.id }, assignee: null } });
+        done.push(reporter.isFallback ? 'reporter(self)/unassign' : 'reporter/unassign');
       } else {
         await jiraPut('/rest/api/3/issue/' + feKey, { fields: { assignee: null } });
         done.push('unassign');
@@ -796,11 +813,11 @@ Full diagnostics were copied to my clipboard — pasting below:
       done.push('Domain/ENG Team');
     }
     if (Object.keys(fields).length) await jiraPut('/rest/api/3/issue/' + feKey, { fields });
-    if (CFG.REASSIGN && src.assigneeId) {
+    if (CFG.REASSIGN && reporter.id) {
       await jiraPut('/rest/api/3/issue/' + feKey, {
-        fields: { reporter: { accountId: src.assigneeId }, assignee: null },
+        fields: { reporter: { accountId: reporter.id }, assignee: null },
       });
-      done.push('reporter/unassign');
+      done.push(reporter.isFallback ? 'reporter(self)/unassign' : 'reporter/unassign');
     }
     // Best-effort: copy the Description ADF into the "CSUP ticket" field. Its own
     // PUT + try/catch so a rejection (or unexpected field config) never fails the
@@ -1076,7 +1093,7 @@ Full diagnostics were copied to my clipboard — pasting below:
     debounce = setTimeout(tick, 250);
   }).observe(document.documentElement, { childList: true, subtree: true });
 
-  trail('init v3.20 @ ' + location.pathname);
+  trail('init v3.21 @ ' + location.pathname);
   window.addEventListener('load', () => setTimeout(tick, 400));
   setTimeout(tick, 600);
 

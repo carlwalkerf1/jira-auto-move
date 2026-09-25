@@ -4,6 +4,14 @@ All notable changes to the **CSUP Auto-Move** userscript. Newest first.
 The version here matches the `@version` in `jira-auto-move.user.js`; bumping it is
 what triggers Tampermonkey to auto-update everyone.
 
+## v3.23 — 2026-09-25
+- **Context stamped into PSE Notes (FE route).** The CSUP's Reporter and Silo/Program ID
+  (Datacenter `customfield_13194` + Program ID `customfield_11600`) are now written to the
+  very top of "PSE Notes," unconditionally — independent of whether there are PSE-restricted
+  comments to review. Fixes info that's otherwise easy to lose once the CSUP is moved.
+  Prepends onto any existing content (never overwrites), so a later PSE-comment-review
+  append still lands below it correctly. Config `STAMP_PSE_NOTES_META`.
+
 ## Docs — 2026-08-26 (no version bump, page only)
 - Documented a known limitation: **images embedded in PSE comments don’t carry over**
   into PSE Notes after a move (text/links do). Confirmed on FE-37231 — the comment’s

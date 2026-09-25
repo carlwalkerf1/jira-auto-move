@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Jira Auto-Move → Firstup Engineering / Bug
 // @namespace    firstup.jira.automove
-// @version      3.22
+// @version      3.23
 // @description  One-click (or keyboard-shortcut) CSUP move that ROUTES by Primary Engineering Domain Team: standard teams → FE/Bug + full field populate (incl. copying the Description into the "CSUP ticket" field); Operations → CLOUD/Story + unassign; EEM → open-and-do-manually; blank/deprecated/unsupported → guidance banner + PSE tab. Reloads so new values show, then reminds of empty manual fields. Verified against firstup-io.atlassian.net.
 // @author       Carl Walker
 // @match        https://firstup-io.atlassian.net/*
@@ -119,6 +119,13 @@
     // then a post-move checklist lets the user append chosen ones into PSE Notes.
     HANDLE_PSE_COMMENTS: true,
     PSE_NOTES_FIELD_ID: 'customfield_15204', // "PSE Notes" (textarea/rich text)
+    // Stamp a small "context" block at the very top of PSE Notes (FE route only),
+    // unconditionally — independent of whether there are PSE comments to review.
+    // Fixes info that's otherwise hard to find once the CSUP is moved (verified
+    // field ids/values live 2026-09-25).
+    STAMP_PSE_NOTES_META: true,
+    DATACENTER_FIELD_ID: 'customfield_13194',  // "Datacenter" (the "silo": US1/US2/EU/All)
+    PROGRAM_ID_FIELD_ID: 'customfield_11600',  // "Program ID" (plain string, often numeric)
     PSE_ROLE_NAME: 'PSE', // comment visibility value/identifier that marks a PSE comment
     // Reload after a successful PSE-comment save so the written PSE Notes shows
     // (Jira view is stale post-write). Only fires on Save, never Dismiss.
@@ -603,9 +610,9 @@ Full diagnostics were copied to my clipboard — pasting below:
 
     // Read assignee + Primary Engineering Domain Team (drives routing; may not
     // survive the move, so we capture it now while still on the CSUP issue).
-    let src = { assigneeId: null, team: null, bug: null, customerImpact: null };
+    let src = { assigneeId: null, team: null, bug: null, customerImpact: null, reporterName: null, datacenter: null, programId: null };
     try {
-      const d = await jiraGet('/rest/api/3/issue/' + srcKey + '?fields=assignee,issuetype,' + CFG.SOURCE_TEAM_FIELD_ID + ',' + CFG.BUG_FIELD_ID + ',' + CFG.CUSTOMER_IMPACT_FIELD_ID);
+      const d = await jiraGet('/rest/api/3/issue/' + srcKey + '?fields=assignee,reporter,issuetype,' + CFG.SOURCE_TEAM_FIELD_ID + ',' + CFG.BUG_FIELD_ID + ',' + CFG.CUSTOMER_IMPACT_FIELD_ID + ',' + CFG.DATACENTER_FIELD_ID + ',' + CFG.PROGRAM_ID_FIELD_ID);
       // Authoritative issue-type gate (the button-hide is best-effort/DOM-based;
       // this catches a hotkey press or a type the DOM check missed).
       const itype = d.fields.issuetype && d.fields.issuetype.name;
@@ -617,11 +624,15 @@ Full diagnostics were copied to my clipboard — pasting below:
       const team = d.fields[CFG.SOURCE_TEAM_FIELD_ID];
       const bug = d.fields[CFG.BUG_FIELD_ID];
       const ci = d.fields[CFG.CUSTOMER_IMPACT_FIELD_ID];
+      const dc = d.fields[CFG.DATACENTER_FIELD_ID];
       src = {
         assigneeId: d.fields.assignee ? d.fields.assignee.accountId : null,
         team: team ? (team.value !== undefined ? team.value : team.name) : null,
         bug: bug ? (bug.value !== undefined ? bug.value : bug.name) : null,
         customerImpact: ci ? (ci.value !== undefined ? ci.value : ci.name) : null,
+        reporterName: d.fields.reporter ? d.fields.reporter.displayName : null,
+        datacenter: dc ? (dc.value !== undefined ? dc.value : dc.name) : null,
+        programId: d.fields[CFG.PROGRAM_ID_FIELD_ID] || null,
       };
     } catch (e) { trail('startFromIssue: read failed — ' + e.message); showBanner('Could not read this issue: ' + e.message, 'error', true); return; }
 
@@ -795,6 +806,31 @@ Full diagnostics were copied to my clipboard — pasting below:
     return { id: me, isFallback: !!me };
   }
 
+  // Prepend a small "context" block (CSUP Reporter, Silo/Program ID) to the very
+  // top of PSE Notes — unconditionally, independent of whether there are PSE
+  // comments to review. Reads existing content first and PREPENDS rather than
+  // overwriting, so it composes correctly whether PSE Notes is empty or already
+  // has content (e.g. a re-run), and any later comment-review append (which adds
+  // to the END) still lands below this block.
+  async function stampPseNotesMeta(feKey, src) {
+    if (!CFG.STAMP_PSE_NOTES_META) return false;
+    const lines = [];
+    if (src.reporterName) lines.push('CSUP Reporter: ' + src.reporterName);
+    if (src.datacenter) lines.push('Silo/Program ID: ' + src.datacenter + (src.programId ? ('/' + src.programId) : ''));
+    if (!lines.length) return false;
+    let existing = null;
+    try {
+      const iss = await jiraGet('/rest/api/3/issue/' + feKey + '?fields=' + CFG.PSE_NOTES_FIELD_ID);
+      existing = iss.fields[CFG.PSE_NOTES_FIELD_ID];
+    } catch (e) { /* treat as empty */ }
+    const existingContent = (existing && existing.type === 'doc' && Array.isArray(existing.content)) ? existing.content : [];
+    const metaContent = lines.map((l) => ({ type: 'paragraph', content: [{ type: 'text', text: l }] }));
+    metaContent.push({ type: 'rule' });
+    const doc = { type: 'doc', version: 1, content: metaContent.concat(existingContent) };
+    await jiraPut('/rest/api/3/issue/' + feKey, { fields: { [CFG.PSE_NOTES_FIELD_ID]: doc } });
+    return true;
+  }
+
   async function populateFields(feKey, route) {
     trail('populateFields: ' + feKey + ' (' + (route && route.dest) + ')');
     const src = JSON.parse(sessionStorage.getItem(SRC_DATA) || '{}');
@@ -850,6 +886,10 @@ Full diagnostics were copied to my clipboard — pasting below:
         }
       } catch (e) { console.warn('[FE AutoMove] description copy failed:', e.message); }
     }
+    // Best-effort: stamp CSUP Reporter + Silo/Program ID at the top of PSE Notes.
+    try {
+      if (await stampPseNotesMeta(feKey, src)) done.push('PSE Notes (context)');
+    } catch (e) { console.warn('[FE AutoMove] PSE Notes context stamp failed:', e.message); }
     return done;
   }
 
@@ -1111,7 +1151,7 @@ Full diagnostics were copied to my clipboard — pasting below:
     debounce = setTimeout(tick, 250);
   }).observe(document.documentElement, { childList: true, subtree: true });
 
-  trail('init v3.22 @ ' + location.pathname);
+  trail('init v3.23 @ ' + location.pathname);
   window.addEventListener('load', () => setTimeout(tick, 400));
   setTimeout(tick, 600);
 

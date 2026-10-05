@@ -6,3 +6,5 @@
 6. Go to https://raw.githubusercontent.com/carlwalkerf1/jira-auto-move/main/jira-auto-move.user.js
 7. Click Install
 8. Go to a CSUP (refresh if already open) and then click the blue button in the bottom-left corner (or just hit Control-Shift-M).
+
+Learn more about how this works by viewing this page! https://carlwalkerf1.github.io/jira-auto-move/
